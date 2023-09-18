@@ -6,8 +6,8 @@ from sys import exit                                    # emergency stop
 
 tool = 'SPA'                                            # which tool to use
 WGS_or_WES = 'WGS'                                      # whether to use WGS or WES signatures (we eventually do everything for WGS only)
-N_samples = 10                                         # how many synthetic samples to generate & analyze
-num_realizations = 5                                   # how many combinations of weights do we generate
+N_samples = 100                                         # how many synthetic samples to generate & analyze
+num_realizations = 50                                    # how many combinations of weights do we generate
 timeout_time = 3600                                     # calls to fitting methods are stopped after this time (increase to 8 hrs for mmsig)
 num_muts_list = [50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]         # which numbers of mutations to test for single-signature cohorts
 num_muts_list_short = [100, 2000, 50000]                # which total numbers of mutations to test for heterogeneous cohorts

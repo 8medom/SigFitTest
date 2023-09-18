@@ -27,25 +27,28 @@ def generate_one_sample(rng, sample_name, num_muts, contribs_given):
 
 
 # generate the mutational catalogs and save them in formats that can be used by the evaluated tools
-def prepare_data(rng, num_muts, contribs, cohort_size = cfg.N_samples):
+def prepare_data(rng, num_muts, contribs, info_label = None):
     if contribs.ndim == 1:      # all samples have the same signature contributions
-        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs) for i in range(cohort_size)], axis = 1)
-    elif contribs.ndim == 2:    # samples have different (empirically-driven?) signature contributions
-        if contribs.shape[0] != cohort_size:
-            print('mismatch between the provided signature contribution array with shape {} and the desired number of samples ({})'.format(contribs.shape, cohort_size))
+        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs) for i in range(cfg.N_samples)], axis = 1)
+    elif contribs.ndim == 2:    # samples have different (e.g., empirically-driven) signature contributions
+        if contribs.shape[0] != cfg.N_samples:
+            print('mismatch between the provided signature contribution array with shape {} and the desired number of samples ({})'.format(contribs.shape, cfg.N_samples))
             sys.exit(1)
-        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs.iloc[i]) for i in range(cohort_size)], axis = 1)
-    counts.to_csv('data/data_for_deconstructSigs.dat', sep = '\t')
+        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs.iloc[i]) for i in range(cfg.N_samples)], axis = 1)
+    if info_label == None: counts.to_csv('data/data_for_deconstructSigs.dat', sep = '\t')
+    else: counts.to_csv('data/data_for_deconstructSigs_{}.dat'.format(info_label), sep = '\t')
     counts = counts.reindex(index = cfg.index_MutationalPatterns)
     counts.index.name = 'Type'
-    counts.to_csv('data/data_for_MutationalPatterns.dat', sep = '\t')
+    if info_label == None: counts.to_csv('data/data_for_MutationalPatterns.dat', sep = '\t')
+    else: counts.to_csv('data/data_for_MutationalPatterns_{}.dat'.format(info_label), sep = '\t')
     counts3 = counts.copy()
     new_index = []
     for ix in counts3.index:
         new_index.append(ix[2:5] + ' ' + ix[0] + ix[2] + ix[6])
     counts3.index = new_index
     counts3 = counts3.reindex(index = cfg.index_YAPSA)
-    counts3.to_csv('data/data_for_YAPSA.dat', sep = '\t')
+    if info_label == None: counts3.to_csv('data/data_for_YAPSA.dat', sep = '\t')
+    else: counts3.to_csv('data/data_for_YAPSA_{}.dat'.format(info_label), sep = '\t')
     counts2 = counts.copy()
     mut_type, trinuc = [], []
     for ix in counts2.index:
@@ -56,7 +59,8 @@ def prepare_data(rng, num_muts, contribs, cohort_size = cfg.N_samples):
     cols = list(counts2.columns)
     new_cols = [cols[-2]] + [cols[-1]] + cols[:-2]
     counts2 = counts2[new_cols]
-    counts2.to_csv('data/data_for_spss.dat', sep = ',', index = False)
+    if info_label == None: counts2.to_csv('data/data_for_spss.dat', sep = ',', index = False)
+    else: counts2.to_csv('data/data_for_spss_{}.dat'.format(info_label), sep = ',', index = False)
     if cfg.tool == 'sigfit':    # data files for sigfit are large -> save them only when really needed
         ox = open('data/data_for_sigfit.dat', 'w')
         ox.write('Sample\tRef\tAlt\tTrinuc\n')
@@ -74,7 +78,8 @@ def prepare_data(rng, num_muts, contribs, cohort_size = cfg.N_samples):
     counts.index = new_index
     counts = counts.reindex(index = cfg.index_sigLASSO)
     counts.index.name = 'Type'
-    counts.to_csv('data/data_for_sigLASSO_spectrum.dat', sep = '\t')
+    if info_label == None: counts.to_csv('data/data_for_sigLASSO_spectrum.dat', sep = '\t')
+    else: counts.to_csv('data/data_for_sigLASSO_spectrum_{}.dat'.format(info_label), sep = '\t')
 
 
 # generate empirically-driven signature contributions
