@@ -58,9 +58,9 @@ def check_open(oname, extra_col):
     if not isfile(oname):
         obj = open(oname, 'w')
         if extra_col == None:
-            obj.write('sig\t#samples\t#muts\tMAE\tMAEstd\tRMSE\twT\t#eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\tPearson_r\tAUC_PR\n')
+            obj.write('sig\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\tPearson_r\n')
         else:
-            obj.write('cancer_type\tweights\t#samples\t#muts\tMAE\tMAEstd\tRMSE\twT\t#eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\tPearson_r\tAUC_PR\n')
+            obj.write('cancer_type\tweights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\tPearson_r\n')
     else: obj = open(oname, 'a')
     return obj
 
@@ -126,8 +126,8 @@ def load_results(info_label, num_muts, extra_col, fname):
 # compute the evaluation metrics for df when true weights are stored in true_res
 def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = False):
     code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
-    if recommended: output_file = check_open('results-{}-{}-{}_recommended.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
-    else: output_file = check_open('results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
+    if recommended: output_file = check_open('../results-{}-{}-{}_recommended.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
+    else: output_file = check_open('../results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
     for ix in df.index:                 # to make sure that signatures from the results are not missing in the true result
         if ix not in true_res.index:
             true_res.loc[ix] = 0
@@ -157,8 +157,6 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
                 if true_res[sig] == 0: wtot_outside_one += df.loc[sig, sample]
             wtot_outside_one /= num_muts
             wtot_outside_squared += wtot_outside_one * wtot_outside_one
-            precision, recall, thresholds = precision_recall_curve(true_res > 0, df[sample])    # precision and recall computed by assuming that the active signatures are the true positives
-            aucPR = auc(recall, precision)                              # area under the precision-recall curve
     elif true_res.ndim == 2:                                            # the same as above but assuming that the true weights are different for each sample (heterogeneous cohorts)
         for sample in true_res.columns:
             either_pos = (true_res[sample] > 0) | (df[sample] > 0)      # see how many signatures have positive true or estimated weight
@@ -176,8 +174,6 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
                     if df.loc[sig, sample] > 0: num_outside += 1        # count false positives
             wtot_outside_one /= num_muts
             wtot_outside_squared += wtot_outside_one * wtot_outside_one
-            precision, recall, thresholds = precision_recall_curve(true_res[sample] > 0, df[sample])
-            aucPR = auc(recall, precision)
     MAE_inside /= (num_muts * df.shape[1])                          # normalize all metrics
     wtot_outside /= (num_muts * df.shape[1])
     wtot_outside_squared /= df.shape[1]
@@ -189,9 +185,9 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
     if len(pearson_vals) >= 3: pearson = np.nanmean(pearson_vals)
     else: pearson = np.nan
     if extra_col == None:
-        out_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_inside, wtot_outside, np.sqrt(wtot_outside_squared), num_outside, pearson, aucPR)
+        out_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_inside, wtot_outside, np.sqrt(wtot_outside_squared), num_outside, pearson)
     else:
-        out_string = '{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(extra_col, which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_inside, wtot_outside, np.sqrt(wtot_outside_squared), num_outside, pearson, aucPR)
+        out_string = '{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(extra_col, which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_inside, wtot_outside, np.sqrt(wtot_outside_squared), num_outside, pearson)
     if recommended: print(out_string.strip() + ' (recommended settings)')
     else: print(out_string.strip())
     output_file.write(out_string)
