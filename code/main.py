@@ -10,6 +10,7 @@ import shutil                                           # recursive directory re
 
 
 def generate_synthetic_catalogs(cancer_types):
+    if not isdir('data'): mkdir('data')
     for cancer_type in cancer_types:
         rng = np.random.default_rng(0)                  # reset the RNG
         empirical = pd.read_csv('../cosmic tissue data/signature_contributions_{}_{}.dat'.format(cfg.WGS_or_WES, cancer_type), sep = '\t', index_col = 'Sample')                                # load empirical signature distribution for this cancer type
@@ -26,6 +27,7 @@ def generate_synthetic_catalogs(cancer_types):
                     tmp = contribs[contribs.columns[(contribs.sum(axis = 0) != 0)]]
                     # save true signature contributions
                     tmp.to_csv('data/true_weights-{}.dat'.format(info_label), sep = '\t', float_format = '%.6f')
+    shutil.move('data', '../generated_data')
 
 
 # fitting syntetic mutational catalogs with empirical signatures weights, using all COSMICv3 as a reference
@@ -34,6 +36,8 @@ def fit_cosmic3_and_evaluate(cancer_types, code_name = 'set6'):
     xxx = open('../stdout-{}.txt'.format(cfg.tool), 'a')
     yyy = open('../stderr-{}.txt'.format(cfg.tool), 'a')
     for cancer_type in cancer_types:
+        if not isdir('data'): mkdir('data')
+        if not isdir('signature_results'): mkdir('signature_results')
         rng = np.random.default_rng(0)                                                  # reset the RNG
         empirical = pd.read_csv('../cosmic tissue data/signature_contributions_{}_{}.dat'.format(cfg.WGS_or_WES, cancer_type), sep = '\t', index_col = 'Sample')                                # load empirical signature distribution for this cancer type
         for rep in range(cfg.num_realizations):
@@ -56,7 +60,7 @@ def fit_cosmic3_and_evaluate(cancer_types, code_name = 'set6'):
         # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
         system('zip ../signature_results-{}-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
         shutil.rmtree('signature_results')  # remove all result files
-        system('rm data/*.*')
+        shutil.rmtree('data')               # remove the directory with synthetic data
     ttt.close()
     xxx.close()
     yyy.close()
@@ -69,6 +73,8 @@ def prune_reference_fit_and_evaluate(cancer_types, code_name = 'set12'):
     yyy = open('../stderr-{}.txt'.format(cfg.tool), 'a')
     stats = []                                              # to save the number of reference signatures in individual runs
     for cancer_type in cancer_types:
+        if not isdir('data'): mkdir('data')
+        if not isdir('signature_results'): mkdir('signature_results')
         rng = np.random.default_rng(0)                      # reset the RNG
         empirical = pd.read_csv('../cosmic tissue data/signature_contributions_{}_{}.dat'.format(cfg.WGS_or_WES, cancer_type), sep = '\t', index_col = 'Sample')
         # unpack previously computed results where all COSMICv3 signatures were used as a reference
@@ -115,9 +121,9 @@ def prune_reference_fit_and_evaluate(cancer_types, code_name = 'set12'):
                         print('cancer_type\tweights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\tPearson_r')
                         evaluate_main(info_label, true_res.T, num_muts, extra_col = cancer_type)
         system('zip ../signature_results-{}-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
-        shutil.rmtree('signature_results')
-        shutil.rmtree('results_set6')
-        system('rm data/*.*')
+        shutil.rmtree('signature_results')  # remove all result files
+        shutil.rmtree('data')               # remove the directory with synthetic data
+        shutil.rmtree('results_set6')       # remove the directory with previously computed results
     to_save = pd.DataFrame(stats)   # prepare the data frame with the number of active signatures for each realization and save it
     to_save.to_csv('../active_signatures-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), sep = '\t', index = False)
     ttt.close()
@@ -127,7 +133,7 @@ def prune_reference_fit_and_evaluate(cancer_types, code_name = 'set12'):
 
 # generate mutational catalogs for the provided cancer types (see the directory 'cosmic tissue data' for further cancer types)
 # the resulting mutational catalogs are all saved in the directory 'data'
-# generate_synthetic_catalogs(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'])
+# generate_synthetic_catalogs(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'])
 
 
 # generate mutational catalogs for the provided cancer types, use the fitting tool set in the variable 'tool' in MS_config.py, and evaluate the estimated signature weights

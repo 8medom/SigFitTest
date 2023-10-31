@@ -4,10 +4,10 @@ from os.path import isfile, isdir                       # OS-level utilities
 from sys import exit                                    # emergency stop
 
 
-tool = 'SPA'                                            # which tool to use
+tool = 'SigsPack'                                            # which tool to use
 WGS_or_WES = 'WGS'                                      # whether to use WGS or WES signatures (we eventually do everything for WGS only)
 N_samples = 100                                         # how many synthetic samples are in each cohort
-num_realizations = 5                                    # how many independent cohorts do we generate
+num_realizations = 2                                    # how many independent cohorts do we generate
 timeout_time = 1800                                     # calls to fitting methods are stopped after this time (increase to 8 hrs for mmsig)
 num_muts_list = [50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]         # which numbers of mutations to test for single-signature cohorts
 num_muts_list_short = [100, 2000, 50000]                # which total numbers of mutations to test for heterogeneous cohorts
@@ -19,11 +19,6 @@ artifact_sigs = ['SBS27', 'SBS43', 'SBS45', 'SBS46', 'SBS47', 'SBS48', 'SBS49', 
 tools_that_produce_relative_contributions = ['deconstructSigs', 'sigLASSO', 'sigfit', 'sigfit2', 'mmsig', 'SigsPack']   # these tools estimate relative signature weights (all others are assumed to estimate absolute signature weights)
 Python_tools = ['SPSS', 'SPA']                          # these tools are Python-based (all others are assumed to be R-based)
 tools_with_recommended_settings = ['sigfit', 'deconstructSigs']                         # these tools have some recommended settings that are evaluated as well
-
-
-# create necessary directories (if needed)
-if not isdir('data'): mkdir('data')
-if not isdir('signature_results'): mkdir('signature_results')
 
 
 # load the reference signatures
