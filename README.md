@@ -17,8 +17,9 @@ In `main.py`, there are three main functions that you can use (comment or uncomm
 * `fit_cosmic3_and_evaluate(...)`: generates mutational catalogs, uses them as input for a signature fitting tool, and evaluates the results produced by this tool. All COSMICv3 signatures are used as a reference for fitting. Sample output of this function for two tools (SigsPack and SigProfilerAssignment) for two cancer types (Head-SCC and ColoRect-AdenoCA) for two cohorts and three different mutation counts (100, 2000, 50000) is included in this repository (files reference_results-WGS-set6-SigsPack.dat and reference_results-WGS-set6-SPA.dat).
 * `prune_reference_fit_and_evaluate()`: uses results of `fit_cosmic3_and_evaluate()` run previously to prune the list of reference signatures (only signatures that are active in sufficiently many samples are kept), runs a fitting tool and evaluates the results. Note that the zip files with the previously computed results (e.g., signature_results-WGS-SigsPack-set12-Head-SCC.zip) must be located in the directory `code`.
 
-Important points:
+### Important points:
 * To run a fitting tool, the tool needs to be installed first following the instructions that come with each tool.
+* To find the available cancer types, see the directory `cosmic tissue data`.
 * Several important variables are set in the file `MS_config.py` in the directory `code`:
   * `tool` (tool that will be run and evaluated),
   * `N_samples` (how many synthetic samples there are in each cohort; default: 100),
