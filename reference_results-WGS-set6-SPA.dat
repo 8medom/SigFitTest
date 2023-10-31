@@ -1,6 +1,5 @@
 # reference results obtained by running fit_cosmic3_and_evaluate(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA']) in main.py
 # tool: SigProfilerAssignment (SPA), v0.0.30
-# number of cohorts/realizations: 2
 cancer_type	weights	samples	muts	MAE	MAEstd	RMSE	wT	n_eff	MAE_TP	wT_FP	wT_FP_std	n_FP	Pearson_r
 Head-SCC	w_0	100	100	0.3330	0.2141	0.3953	0.9747	2.8311	0.4747	0.1913	0.2164	0.9700	0.3217
 Head-SCC	w_0	100	2000	0.0531	0.0830	0.0981	1.0000	2.9477	0.1060	0.0002	0.0012	0.0200	0.9764
