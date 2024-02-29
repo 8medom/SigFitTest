@@ -7,27 +7,23 @@ import MS_config as cfg                                 # all global stuff
 
 # generate the number of mutations in all contexts for one sample
 def generate_one_sample(rng, sample_name, num_muts, contribs_given):
-    if contribs_given.sum() > 1 + 1e-14:    # check if the sum of signature contributions is not too large
-        print('the sum of signature contributions cannot be greater than 1, {:.4f} was given in {}'.format(contribs_given.sum(), sample_name))
+    if np.abs(contribs_given.sum() - 1) > 1e-12:
+        print('the sum of signature contributions must be one, now it differs by {:.2e}'.format(contribs_given.sum() - 1))
         sys.exit(1)
     if np.any(contribs_given < 0):          # there must be no negative signature contributions
-        print('signature contributions must be non-negative, now the smallest one is {:.1e} in {}'.format(contribs_given.min(), sample_name))
+        print('signature contributions must be non-negative, now the smallest one is {:.2e} in {}'.format(contribs_given.min(), sample_name))
         sys.exit(1)
     context_weights = pd.Series(0, index = cfg.input_sigs.index)                        # compute weights of tri-nucleotide contexts
     for sig in cfg.input_sigs.columns:                                                  # for each context, the weights is a weighted sum over all signatures
         context_weights += contribs_given[sig] * cfg.input_sigs[sig]
-    noise_mag = 1 - contribs_given.sum()
-    if noise_mag > 0:                      # when the given signature contributions are less than one in total, the rest is expected to be noise; we use the overall WGS context frequencies as the noise
-        for ix in context_weights.index:
-            context_weights.loc[ix] += noise_mag * cfg.noise.loc[ix].values[0]
-    context_weights /= sum(context_weights)                                             # make sure that the weights of all contexts sum to 1
+    context_weights /= context_weights.sum()                                            # make sure that the weights sum to 1
     counts = np.zeros(96, dtype = int)                                                  # empty count array
     np.add.at(counts, rng.choice(96, p = context_weights, size = num_muts), 1)          # generate mutation positions
     return pd.DataFrame(counts, index = context_weights.index, columns = [sample_name]) # return the count array as a data frame
 
 
-# generate the mutational catalogs and save them in formats that can be used by the evaluated tools
-def prepare_data(rng, num_muts, contribs, info_label = None):
+# generate a mutational catalog driven by signature acitivity
+def prepare_data_from_signature_activity(rng, num_muts, contribs):
     if contribs.ndim == 1:      # all samples have the same signature contributions
         counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs) for i in range(cfg.N_samples)], axis = 1)
     elif contribs.ndim == 2:    # samples have different (e.g., empirically-driven) signature contributions
@@ -35,6 +31,25 @@ def prepare_data(rng, num_muts, contribs, info_label = None):
             print('mismatch between the provided signature contribution array with shape {} and the desired number of samples ({})'.format(contribs.shape, cfg.N_samples))
             sys.exit(1)
         counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs.iloc[i]) for i in range(cfg.N_samples)], axis = 1)
+    return counts
+
+
+# generate a mutational catalog by subsampling from a real mutational catalog
+def prepare_data_from_real_data_by_subsampling(rng, num_muts, real_data):
+    counts = pd.DataFrame(0, index = real_data.index, columns = real_data.columns)
+    for col in real_data.columns:               # go over samples one by one
+        tot_muts = real_data[col].sum()
+        if num_muts >= tot_muts:                # if too many mutations are required, skip the downsampling and copy all mutations
+            counts[col] = real_data[col]
+        else:
+            all_muts = [ix for ix in real_data.index for n in range(real_data.loc[ix, col])]    # a list with repeated contexts
+            chosen_muts = rng.choice(all_muts, size = num_muts, replace = False)                # choose the needed number of mutations
+            for ix in chosen_muts: counts.loc[ix, col] += 1                                     # increment the corresponding entries
+    return counts
+
+
+# saves created mutational catalog in various formats that can be used by the evaluated tools
+def save_catalogs(counts, info_label = None):
     if info_label == None: counts.to_csv('data/data_for_deconstructSigs.dat', sep = '\t')
     else: counts.to_csv('data/data_for_deconstructSigs_{}.dat'.format(info_label), sep = '\t')
     counts = counts.reindex(index = cfg.index_MutationalPatterns)
@@ -83,16 +98,16 @@ def prepare_data(rng, num_muts, contribs, info_label = None):
 
 
 # generate empirically-driven signature contributions
-def generate_weights_empirical(num_muts, empirical_sub, cohort_size = cfg.N_samples, noise = 0):
+def generate_weights_empirical(num_muts, empirical_sub, cohort_size = cfg.N_samples):
     for ix in empirical_sub.index:      # re-weight the signature contributions to match the required number of mutations
-        empirical_sub.loc[ix] = empirical_sub.loc[ix] * (1 - noise) * num_muts / empirical_sub.loc[ix].sum()
+        empirical_sub.loc[ix] = empirical_sub.loc[ix] * num_muts / empirical_sub.loc[ix].sum()
     empirical_sub[empirical_sub < 10] = 0   # we remove weak signatures (those with the expected number of mutations below 10) because they cannot be recovered by the methods anyway (as we use the same threshold of 10 mutations for them)
     if (empirical_sub.sum(axis = 1) == 0).sum() > 0:
         print('for num_muts = {} and realization {}, there is a sample with all absolute signature weights below 10\nwe skip this iteration'.format(num_muts, rep))
         return None
     for ix in empirical_sub.index:      # re-weight the signature contributions again to compensate for possible zeros introduced above
-        empirical_sub.loc[ix] *= (1 - noise) / empirical_sub.loc[ix].sum()
-    contribs = pd.DataFrame(0, index = ['S{}'.format(x) for x in range(cohort_size)], columns = cfg.input_sigs.columns, dtype = float)  # move from the fitted signatures to a data frame with all COSMIC signatures (which is then used as input for prepare_data)
+        empirical_sub.loc[ix] /= empirical_sub.loc[ix].sum()
+    contribs = pd.DataFrame(0, index = ['S{}'.format(x) for x in range(cohort_size)], columns = cfg.input_sigs.columns, dtype = float)  # create a data frame with all COSMIC signatures and their weights (this is then used as input for prepare_data)
     for ix in empirical_sub.index:      # save the generated signature weights in a data frame
         for sig in empirical_sub.columns:
             contribs.loc['S{}'.format(ix), sig] = empirical_sub.loc[ix, sig]

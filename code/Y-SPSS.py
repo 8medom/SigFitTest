@@ -9,4 +9,4 @@ spss_pcwag.single_sample_pcwag('data/data_for_spss.dat', output = 'signature_res
 df = pd.read_csv('signature_results/sig_activities.txt', sep = '\t')
 df = df.set_index('Cancer Types', drop = True)
 df = df.drop('Similarity', axis = 1).T
-df.to_csv('signature_results/SigProfiler-contribution.dat')
+df.to_csv('signature_results/SPSS-contribution.dat')
