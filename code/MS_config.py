@@ -4,18 +4,18 @@ from os.path import isfile, isdir                       # OS-level utilities
 from sys import exit                                    # emergency stop
 
 
-tool = 'SigsPack'                                       # which tool to use
+tool = 'SPA'                                       # which tool to use
 WGS_or_WES = 'WGS'                                      # whether to use WGS or WES signatures (we eventually do everything for WGS only)
 N_samples = 100                                         # how many synthetic samples are in each cohort
-num_realizations = 50                                   # how many independent cohorts do we generate
+num_realizations = 2                                   # how many independent cohorts do we generate
 timeout_time = 1800                                     # calls to fitting methods are stopped after this time (increase to 8 hrs for mmsig)
-num_muts_list = [50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]         # which numbers of mutations to test for single-signature cohorts
-num_muts_list_short = [100, 2000, 50000]                # which total numbers of mutations to test for heterogeneous cohorts
+num_muts_list = [50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]         # numbers of mutations for simple cohorts
+num_muts_list_short = [100, 2000, 50000]                                                # numbers of mutations for heterogeneous cohorts
 if WGS_or_WES == 'WGS': input_signatures = '../input/COSMIC_v3.3.1_SBS_GRCh38.txt'      # location of input WGS signatures
 else: input_signatures = '../input/COSMIC_v3_SBS_GRCh38-WES.txt'                        # location of input WES signatures
 out_sigs = ['SBS10c', 'SBS10d', 'SBS86', 'SBS87', 'SBS88', 'SBS89', 'SBS90', 'SBS91', 'SBS92', 'SBS93', 'SBS94', 'SBS95']   # signatures that are in COSMICv3.3.1 but they are not in COSMICv3 (they can be used as out-of-reference signatures for tools that use COSMICv3 as a reference)
 tools_that_produce_relative_contributions = ['deconstructSigs', 'sigLASSO', 'sigfit', 'sigfit2', 'mmsig', 'SigsPack']       # these tools estimate relative signature weights (all others are assumed to estimate absolute signature weights)
-Python_tools = ['SPSS', 'SPA', 'MuSiCal']                                               # all other tools are assumed to be R-based
+Python_tools = ['SPSS', 'SPA', 'MuSiCal', 'MuSiCalFull']                                # all other tools are assumed to be R-based
 tools_with_recommended_settings = ['sigfit', 'deconstructSigs']                         # these tools have some recommended settings that are evaluated as well
 
 

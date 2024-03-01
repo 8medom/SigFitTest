@@ -25,7 +25,7 @@ def check_provided_weights(weights):
             sys.exit(1)
 
 
-# generate and save synthetic mutational catalogs
+# generate and save synthetic mutational catalogs with signature weights driven by COSMIC results on real tissue data
 # out-of-reference signatures are assigned the weights given in out_of_reference_weights (default: no out-of-reference signatures)
 def generate_synthetic_catalogs(cancer_types, out_of_reference_weights = []):
     tot_out_of_reference = sum(out_of_reference_weights)
@@ -39,10 +39,16 @@ def generate_synthetic_catalogs(cancer_types, out_of_reference_weights = []):
         for rep in range(cfg.num_realizations):
             print('\ngenerating catalog #{} for {}'.format(rep, cancer_type))
             who = rng.choice(empirical.shape[0], size = cfg.N_samples, replace = True)  # choose N_samples from all samples in the empirical signature distribution (with repetition)
+            if tot_out_of_reference > 0:                # if needed, choose which out-of-reference signatures to add
+                new_active = rng.choice(cfg.out_sigs, size = len(out_of_reference_weights), replace = False)
             for num_muts in cfg.num_muts_list_short:    # gradually increase the number of mutations
                 print('{} mutations ..'.format(num_muts), end = ' ', flush = True)
                 contribs = generate_weights_empirical(num_muts, empirical.iloc[who].astype('double').reset_index(drop = True))
                 if contribs is not None:
+                    if tot_out_of_reference > 0:
+                        contribs *= (1 - tot_out_of_reference)
+                        for n, weight in enumerate(out_of_reference_weights):
+                            contribs[new_active[n]] = weight
                     info_label = '{}_{}_{}'.format(cancer_type, rep, num_muts)
                     # generate and save synthetic mutational catalogs
                     counts = prepare_data_from_signature_activity(rng = rng, num_muts = num_muts, contribs = contribs)
@@ -52,6 +58,41 @@ def generate_synthetic_catalogs(cancer_types, out_of_reference_weights = []):
                     # save true signature contributions
                     tmp.to_csv('data/true_weights-{}.dat'.format(info_label), sep = '\t', float_format = '%.6f')
     shutil.move('data', '../generated_data')
+
+
+# fitting syntetic mutational catalogs with empirical signatures weights, using all COSMICv3 signatures as a reference
+# out-of-reference signatures are assigned the weights given in out_of_reference_weights (default: no out-of-reference signatures)
+def fit_with_cosmic3_synthetic_simple(sig_weights, code_name = 'set1'):
+    print('=== fitting simple synthetic mutational catalogs using COSMICv3 ===')
+    print('active signatures: {}'.format(', '.join(['{} ({})'.format(sig, sig_weights[sig]) for sig in sig_weights.keys()])))
+    ttt = open('../running_times-{}-{}.dat'.format(cfg.WGS_or_WES, cfg.tool), 'a')
+    xxx = open('../stdout-{}.txt'.format(cfg.tool), 'a')
+    yyy = open('../stderr-{}.txt'.format(cfg.tool), 'a')
+    if not isdir('data'): mkdir('data')
+    if not isdir('signature_results'): mkdir('signature_results')
+    rng = np.random.default_rng(0)                              # reset the RNG
+    print('weights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FPstd\tn_FP\twT_FN\tn_FN\tPearson_r')
+    for num_muts in cfg.num_muts_list:                          # to gradually increase the number of mutations
+        contribs = pd.DataFrame(0, index = ['S{}'.format(x) for x in range(cfg.N_samples)], columns = cfg.input_sigs.columns, dtype = float)
+        for sig in sig_weights: contribs[sig] = sig_weights[sig]
+        sig_info = '~'.join(['{}({})'.format(sig, sig_weights[sig]) for sig in sig_weights.keys()])
+        info_label = '{}\t{}\t{}\t{}'.format(cfg.tool, code_name, sig_info, num_muts)
+        # prepare synthetic mutational catalogs
+        counts = prepare_data_from_signature_activity(rng = rng, num_muts = num_muts, contribs = contribs)
+        save_catalogs(counts = counts)
+        # data frame with true signature contributions
+        true_res = num_muts * contribs
+        # run the fitting tool defined in variable tool in MS_config.py
+        timeout_run(info_label, ttt, xxx, yyy)
+        # evaluate the estimated signature weights
+        evaluate_main(info_label, true_res.T, num_muts)
+    # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
+    system('zip ../signature_results-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name))
+    shutil.rmtree('signature_results')  # remove all result files
+    shutil.rmtree('data')               # remove the directory with synthetic data
+    ttt.close()
+    xxx.close()
+    yyy.close()
 
 
 # fitting syntetic mutational catalogs with empirical signatures weights, using all COSMICv3 signatures as a reference
@@ -71,7 +112,7 @@ def fit_with_cosmic3_synthetic(cancer_types, code_name = 'set6', out_of_referenc
         empirical = pd.read_csv('../cosmic tissue data/signature_contributions_{}_{}.dat'.format(cfg.WGS_or_WES, cancer_type), sep = '\t', index_col = 'Sample')                                # load empirical signature distribution for this cancer type
         for rep in range(cfg.num_realizations):
             print('\n{}: starting run {} for {} & {}'.format(cfg.tool, rep, code_name, cancer_type))
-            print('cancer_type\tweights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\tPearson_r')
+            print('cancer_type\tweights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FPstd\tn_FP\twT_FN\tn_FN\tPearson_r')
             # choose N_samples from all samples in the empirical signature distribution (with repetition)
             who = rng.choice(empirical.shape[0], size = cfg.N_samples, replace = True)
             for num_muts in cfg.num_muts_list_short:                # to gradually increase the number of mutations
@@ -153,7 +194,7 @@ def prune_reference_and_fit_synthetic(cancer_types, code_name = 'set12'):
                         save_catalogs(counts = counts)
                         true_res = num_muts * contribs
                         timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type, which_setup = 'Y')
-                        print('cancer_type\tweights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\tPearson_r')
+                        print('cancer_type\tweights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_act\twT_FP\twT_FP_std\tn_FP\tPearson_r')
                         evaluate_main(info_label, true_res.T, num_muts, extra_col = cancer_type)
         system('zip ../signature_results-{}-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
         shutil.rmtree('signature_results')  # remove all result files
@@ -198,7 +239,7 @@ def fit_with_cosmic3_subsampled_real_catalogs(code_name = 'set99', which_input =
         which_num_muts.append(smallest_num_muts)
     for rep in range(cfg.num_realizations):
         print('\n{}: starting run {} for {}'.format(cfg.tool, rep, code_name))
-        print('run\tsamples\tmuts\tMAE\tMAEstd\twT\tn_FP\twT_FP')
+        print('run\tsamples\tmuts\tMAE\tMAEstd\twT\tn_FP\twT_FP\tn_FN\twT_FN')
         for num_muts in which_num_muts:                 # gradually increase the number of mutations
             info_label = '{}\t{}\trun_{}\t{}'.format(cfg.tool, code_name, rep, num_muts)
             # prepare synthetic mutational catalogs
@@ -221,13 +262,20 @@ def fit_with_cosmic3_subsampled_real_catalogs(code_name = 'set99', which_input =
 
 # generate mutational catalogs for the provided cancer types (see the directory 'cosmic tissue data' for further cancer types)
 # output: mutational catalogs saved in the directory 'data'
-generate_synthetic_catalogs(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'])
+# generate_synthetic_catalogs(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'])
+# generate_synthetic_catalogs(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], out_of_reference_weights = [0.15, 0.05])
 
 
-# generate mutational catalogs for the provided cancer types; use the fitting tool set in the variable 'tool' in MS_config.py; and evaluate the estimated signature weights
+# generate simple mutational catalogs with provided signature weights (all samples have the same signature composition); use the fitting tool set in the variable 'tool' in MS_config.py; and evaluate the estimated signature weights
 # output: estimated signature weights ('signature_results-*.zip) and evaluation results (results-*.dat); these files are saved in the main directory, one level up from the directory code where main.py is located
-# fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'])
+# fit_with_cosmic3_synthetic_simple(sig_weights = {'SBS1': 0.7, 'SBS5': 0.3})
+
+
+# generate mutational catalogs for the provided cancer types; use the fitting tool set in the variable 'tool' in MS_config.py; and evaluate the estimated signature weights; when out_of_reference_weights is specified, randomly chosen COSMICv3.3.1 signatures that are absent in COSMICv3 are assigned these weights
+# output: estimated signature weights ('signature_results-*.zip) and evaluation results (results-*.dat); these files are saved in the main directory, one level up from the directory code where main.py is located
+fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'])
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'set98', out_of_reference_weights = [0.15, 0.05])
+
 
 # generate mutational catalogs for the provided cancer types; load the previously computed results of fit_cosmic3_and_evaluate ("set6"); use them to find which signatures are sufficiently active; fit the catalogs using the active signatures as a reference; evaluate the estimated signature weights
 # output: estimated signature weights ('signature_results-*.zip) and evaluation results (results-*.dat); these files are saved in the main directory, one level up from the directory code where main.py is located
