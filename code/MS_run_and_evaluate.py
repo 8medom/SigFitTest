@@ -160,8 +160,12 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
                 else: num_TN += 1                                   # true negative
         wtot_FP_one_sample /= num_muts
         wtot_FP_squared += wtot_FP_one_sample * wtot_FP_one_sample
-        Psample = num_TP / (num_TP + num_FP)
-        Rsample = num_TP / (num_TP + num_FN)
+        if num_TP + num_FP > 0:
+            Psample = num_TP / (num_TP + num_FP)
+            Rsample = num_TP / (num_TP + num_FN)
+        else:
+            Psample = 0
+            Rsample = 0
         if Psample + Rsample > 0: Fsample = 2 * Psample * Rsample / (Psample + Rsample)
         else: Fsample = 0
         P_vals.append(Psample)
@@ -258,8 +262,12 @@ def evaluate_real_catalogs(info_label, true_res, num_muts, aaa_file, compress_re
                     wtot_FP += df.loc[sig, sample]
                     num_FP += 1
                 else: num_TN += 1
-        Psample = num_TP / (num_TP + num_FP)
-        Rsample = num_TP / (num_TP + num_FN)
+        if num_TP + num_FP > 0:
+            Psample = num_TP / (num_TP + num_FP)
+            Rsample = num_TP / (num_TP + num_FN)
+        else:
+            Psample = 0
+            Rsample = 0
         if Psample + Rsample > 0: Fsample = 2 * Psample * Rsample / (Psample + Rsample)
         else: Fsample = 0
         P_vals.append(Psample)
