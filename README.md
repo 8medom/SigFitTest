@@ -3,12 +3,12 @@ SigFitTest is a package to create realistic synthetic mutational catalogs and to
 
 
 ## How to use this package
-This package is written in Python. Code snippets to run individual fitting tools are primarily written in R.
+This package is written in Python. Code snippets to run individual fitting tools are written in R and Python.
 
 There are four directories:
-* `code`: the actual scripts,
+* `code`: scripts to run,
 * `input`: reference signature catalogs,
-* `cosmic tissue data`: signature activity (using the COSMICv3 catalog) in tissue data provided by the COSMIC website,
+* `cosmic tissue data`: signature activity (using the COSMICv3 catalog) in the tissue data provided by the COSMIC website,
 * `real mutational catalogs`: SBS96 mutational catalogs of four samples from the PCAWG project and the average signature weights estimated for them by sigLASSO, SigProfilerAssignment, and MuSiCal.
 
 To run the package, you need to: (1) download and unpack it, (2) go to the directory `code`, (3) run `main.py`.
