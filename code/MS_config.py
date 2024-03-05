@@ -17,6 +17,8 @@ out_sigs = ['SBS10c', 'SBS10d', 'SBS86', 'SBS87', 'SBS88', 'SBS89', 'SBS90', 'SB
 tools_that_produce_relative_contributions = ['deconstructSigs', 'sigLASSO', 'sigfit', 'sigfit2', 'mmsig', 'SigsPack']       # these tools estimate relative signature weights (all others are assumed to estimate absolute signature weights)
 Python_tools = ['SPSS', 'SPA', 'MuSiCal', 'MuSiCalFull']                                # all other tools are assumed to be R-based
 tools_with_recommended_settings = ['sigfit', 'deconstructSigs']                         # these tools have some recommended settings that are evaluated as well
+header_line = 'weights\tsamples\tmuts\tMAE\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\tn_FP\twT_FN\tn_FN\tP\tR\tF1\tPearson_r'   # header for the concise result tables (printed)
+header_line_full = 'weights\tsamples\tmuts\tMAE\tMAE_std\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\twT_FN\tn_FN\tP\tP_std\tR\tR_std\tF1\tF1_std\tPearson_r'  # header for the full result tables (saved)
 
 
 # load the reference signatures
@@ -26,6 +28,6 @@ print('\n\n~~~ starting SigFitTest for {} signatures ~~~\n\n'.format(WGS_or_WES)
 
 # load other auxiliary files
 index_MutationalPatterns = pd.read_csv('../input/mut_matrix_order_MutationalPatterns.dat', header = None).squeeze()
-index_sigLASSO = pd.read_csv('../input/sigLASSO-cosmic_v3_exo.txt', sep = ',').iloc[:, 0]
+index_sigLASSO = pd.read_csv('../input/sigLASSO-cosmic_v3_exo.txt', sep = ',', comment = '#').iloc[:, 0]
 index_YAPSA = pd.read_csv('../input/mut_matrix_order_YAPSA.dat', header = None).squeeze()
 order_spss = pd.read_csv('../input/mut_matrix_order_spss.dat', sep = ',')

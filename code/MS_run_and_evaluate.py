@@ -11,6 +11,11 @@ from scipy.stats import ranksums, pearsonr              # for evaluation of resu
 import MS_config as cfg                                 # all global stuff
 
 
+def shorten_string(s, max_length = 15):
+    if len(s) <= max_length: return(s)
+    else: return(s[:max_length - 3] + '...')
+
+
 # prepare subsets of the default COSMIC signatures; these subsets can be either defined by which signatures are active for a given cancer type (when active_sigs == None) or by which signatures are active in previously computed fitting results (those signatures are then passed as a list in active_sigs)
 # the generated subsets are formatted for all evaluated tools and their names have suffix RELEVANT
 def prepare_relevant_COSMIC(cancer_type, also_artefacts = False, active_sigs = None):
@@ -56,11 +61,11 @@ def check_open(oname, extra_col):
     if not isfile(oname):
         obj = open(oname, 'w')
         if extra_col == 'real_data':
-            obj.write('run\tsamples\tmuts\tMAE\tMAEstd\twT\tn_FP\twT_FP\tn_FN\twT_FN\n')
+            obj.write('run\tsamples\tmuts\tMAE\tMAE_std\twT\tn_FP\twT_FP\tn_FN\twT_FN\tP\tP_std\tR\tR_std\tF1\tF1_std\n')
         else:
-            base = 'samples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\twT_FN\tn_FN\tPearson_r\n'
-            if extra_col == None: obj.write('sig\t' + base)
-            else: obj.write('cancer_type\tweights\t' + base)
+            base = '\t'.join(cfg.header_line_full.split('\t')[1:])
+            if extra_col == None: obj.write('sig\t' + base + '\n')
+            else: obj.write('cancer_type\tweights\t' + base + '\n')
     else: obj = open(oname, 'a')
     return obj
 
@@ -111,7 +116,7 @@ def load_results(info_label, num_muts, extra_col, fname):
         return df
 
 
-# compute the evaluation metrics for df when true weights are stored in true_res
+# compute the evaluation metrics for df when true weights are true_res
 def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = False):
     if true_res.ndim == 1:                      # possible legacy issue: true_res is a vector (i.e., all samples have the same composition)
         print('true_res should be a DataFrame specifying the true signature weight for each sample, not a vector')
@@ -131,24 +136,37 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
     nMAE = err.mean()                           # mean of the fitting error over all samples
     nMAE_std = err.std()                        # std of the fitting error between the samples
     nRMSE = np.sqrt(np.power(err, 2).mean())    # root mean square witting error
-    wtot_FP, wtot_FP_squared, num_FP_sigs, wtot_FN, num_FN_sigs, MAE_active, pearson_vals = 0, 0, 0, 0, 0, 0, []
+    wtot_FP, wtot_FP_squared, num_FP_sigs, wtot_FN, num_FN_sigs, MAE_active, pearson_vals, P_vals, R_vals, F_vals = 0, 0, 0, 0, 0, 0, [], [], [], []
     for sample in true_res.columns:
         either_pos = (true_res[sample] > 0) | (df[sample] > 0)      # see how many signatures have positive true or estimated weight
         if either_pos.sum() >= 3:                                   # if they are at least three, compute the Pearson correlation between true and estimated weights (taking only those chosen signatures into account)
-            pearson_vals.append(pearsonr(true_res[sample][either_pos], df[sample][either_pos])[0])
-        wtot_FP_one_sample = 0
+            if np.std(true_res[sample][either_pos]) > 1e-8 and np.std(df[sample][either_pos]) > 1e-8:   # to avoid one set of results to be all identical values (Pearson correlation then cannot be computed)
+                pearson_vals.append(pearsonr(true_res[sample][either_pos], df[sample][either_pos])[0])
+        wtot_FP_one_sample, num_TP, num_TN, num_FP, num_FN = 0, 0, 0, 0, 0
         for sig in true_res.index:
             if true_res.loc[sig, sample] > 0:                       # active signature
                 MAE_active += np.abs(df.loc[sig, sample] - true_res.loc[sig, sample])   # increment the error for active signatures
-                if df.loc[sig, sample] == 0:                        # false negative signature
+                if df.loc[sig, sample] == 0:                        # false negative
                     wtot_FN += true_res.loc[sig, sample]
                     num_FN_sigs += 1
-            elif df.loc[sig, sample] > 0:                           # inactive signatures with estimated activity (false positives)
-                wtot_FP += df.loc[sig, sample]                      # the average weight assigned to inactive signature
-                wtot_FP_one_sample += df.loc[sig, sample]           # to focus on this one sample only
-                num_FP_sigs += 1                                    # false positive signature
+                    num_FN += 1
+                else: num_TP += 1
+            else:                                                   # inactive signature
+                if df.loc[sig, sample] > 0:                         # false positive
+                    wtot_FP += df.loc[sig, sample]                  # increment the average weight assigned to inactive signatures
+                    wtot_FP_one_sample += df.loc[sig, sample]       # the same but for this one sample only
+                    num_FP_sigs += 1
+                    num_FP += 1
+                else: num_TN += 1                                   # true negative
         wtot_FP_one_sample /= num_muts
         wtot_FP_squared += wtot_FP_one_sample * wtot_FP_one_sample
+        Psample = num_TP / (num_TP + num_FP)
+        Rsample = num_TP / (num_TP + num_FN)
+        if Psample + Rsample > 0: Fsample = 2 * Psample * Rsample / (Psample + Rsample)
+        else: Fsample = 0
+        P_vals.append(Psample)
+        R_vals.append(Rsample)
+        F_vals.append(Fsample)
     MAE_active /= (2 * num_muts * df.shape[1])                      # normalize all metrics
     wtot_FP /= (num_muts * df.shape[1])
     wtot_FP_squared /= df.shape[1]
@@ -161,12 +179,16 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
     n_eff = np.ma.masked_invalid(1 / np.power(w_norm, 2).sum()).mean()  # effective number of estimated signatures per sample
     if len(pearson_vals) >= 3: pearson = np.nanmean(pearson_vals)
     else: pearson = np.nan
-    results_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, pearson)
-    if extra_col == None: out_string = results_string
-    else: out_string = '{}\t{}'.format(extra_col, results_string)
-    if recommended: print(out_string.strip() + ' (recommended settings)')
-    else: print(out_string.strip())
-    output_file.write(out_string)
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals), pearson)
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], num_muts, nMAE, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(F_vals), pearson)
+    if extra_col == None:
+        if recommended: print(short_string + '(recommended settings)')
+        else: print(short_string)
+        output_file.write(full_string)
+    else:
+        if recommended: print(shorten_string(extra_col) + '\t' + short_string + '(recommended settings)')
+        else: print(shorten_string(extra_col) + '\t' + short_string)
+        output_file.write(extra_col + '\t' + full_string)
     output_file.close()
 
 
@@ -222,27 +244,37 @@ def evaluate_real_catalogs(info_label, true_res, num_muts, aaa_file, compress_re
     err = np.abs(df.sub(true_res, axis = 0)).sum() / 2
     nMAE = err.mean()                           # mean of the fitting error over all samples
     nMAE_std = err.std()                        # std of the fitting error between the samples
-    num_FP_values, wtot_FP_values, num_FN_values, wtot_FN_values = [], [], [], []
+    num_FP_values, wtot_FP_values, num_FN_values, wtot_FN_values, P_vals, R_vals, F_vals = [], [], [], [], [], [], []
     for sample in err.index:
-        num_FP, wtot_FP, num_FN, wtot_FN = 0, 0, 0, 0
+        num_FP, num_FN, num_TP, num_TN, wtot_FP, wtot_FN = 0, 0, 0, 0, 0, 0
         for sig in true_res.index:
-            if true_res.loc[sig, sample] == 0:  # inactive signature
-                if df.loc[sig, sample] > 0:     # false positive
-                    wtot_FP += df.loc[sig, sample]
-                    num_FP += 1
-            else:                               # active signature
+            if true_res.loc[sig, sample] > 0:   # active signature
                 if df.loc[sig, sample] == 0:    # false negative
                     wtot_FN += true_res.loc[sig, sample]
                     num_FN += 1
-        aaa_file.write('{}\t{}\t{}\t{:.4f}\t{:.4f}\t{}\t{:.4f}\t{}\t{:.4f}\n'.format(num_muts, which, sample, err[sample], df[sample].sum(), num_FP, wtot_FP, num_FN, wtot_FN))
+                else: num_TP += 1
+            else:                               # inactive signature
+                if df.loc[sig, sample] > 0:     # false positive
+                    wtot_FP += df.loc[sig, sample]
+                    num_FP += 1
+                else: num_TN += 1
+        Psample = num_TP / (num_TP + num_FP)
+        Rsample = num_TP / (num_TP + num_FN)
+        if Psample + Rsample > 0: Fsample = 2 * Psample * Rsample / (Psample + Rsample)
+        else: Fsample = 0
+        P_vals.append(Psample)
+        R_vals.append(Rsample)
+        F_vals.append(Fsample)
+        aaa_file.write('{}\t{}\t{}\t{:.4f}\t{:.4f}\t{}\t{:.4f}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(num_muts, which, sample, err[sample], df[sample].sum(), num_FP, wtot_FP, num_FN, wtot_FN, Psample, Rsample, Fsample))
         num_FP_values.append(num_FP)
         wtot_FP_values.append(wtot_FP)
         num_FN_values.append(num_FN)
         wtot_FN_values.append(wtot_FN)
-    out_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values))
-    if recommended: print(out_string.strip() + ' (recommended settings)')
-    else: print(out_string.strip())
-    output_file.write(out_string)
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals))
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], num_muts, nMAE, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.mean(R_vals), np.mean(F_vals))
+    if recommended: print(short_string + ' (recommended settings)')
+    else: print(short_string)
+    output_file.write(full_string)
     output_file.close()
     if compress_result_file:
         rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-')))

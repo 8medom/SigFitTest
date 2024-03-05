@@ -71,7 +71,7 @@ def fit_with_cosmic3_synthetic_simple(sig_weights, code_name = 'set1'):
     if not isdir('data'): mkdir('data')
     if not isdir('signature_results'): mkdir('signature_results')
     rng = np.random.default_rng(0)                              # reset the RNG
-    print('weights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FPstd\tn_FP\twT_FN\tn_FN\tPearson_r')
+    print(cfg.header_line)
     for num_muts in cfg.num_muts_list:                          # to gradually increase the number of mutations
         contribs = pd.DataFrame(0, index = ['S{}'.format(x) for x in range(cfg.N_samples)], columns = cfg.input_sigs.columns, dtype = float)
         for sig in sig_weights: contribs[sig] = sig_weights[sig]
@@ -112,7 +112,7 @@ def fit_with_cosmic3_synthetic(cancer_types, code_name = 'set6', out_of_referenc
         empirical = pd.read_csv('../cosmic tissue data/signature_contributions_{}_{}.dat'.format(cfg.WGS_or_WES, cancer_type), sep = '\t', index_col = 'Sample')                                # load empirical signature distribution for this cancer type
         for rep in range(cfg.num_realizations):
             print('\n{}: starting run {} for {} & {}'.format(cfg.tool, rep, code_name, cancer_type))
-            print('cancer_type\tweights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FPstd\tn_FP\twT_FN\tn_FN\tPearson_r')
+            print('cancer_type\t{}'.format(cfg.header_line))
             # choose N_samples from all samples in the empirical signature distribution (with repetition)
             who = rng.choice(empirical.shape[0], size = cfg.N_samples, replace = True)
             for num_muts in cfg.num_muts_list_short:                # to gradually increase the number of mutations
@@ -194,7 +194,7 @@ def prune_reference_and_fit_synthetic(cancer_types, code_name = 'set12'):
                         save_catalogs(counts = counts)
                         true_res = num_muts * contribs
                         timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type, which_setup = 'Y')
-                        print('cancer_type\tweights\tsamples\tmuts\tMAE\tMAEstd\tRMSE\twT\tn_eff\tMAE_act\twT_FP\twT_FP_std\tn_FP\tPearson_r')
+                        print('cancer_type\t{}'.format(cfg.header_line))
                         evaluate_main(info_label, true_res.T, num_muts, extra_col = cancer_type)
         system('zip ../signature_results-{}-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
         shutil.rmtree('signature_results')  # remove all result files
@@ -239,7 +239,7 @@ def fit_with_cosmic3_subsampled_real_catalogs(code_name = 'set99', which_input =
         which_num_muts.append(smallest_num_muts)
     for rep in range(cfg.num_realizations):
         print('\n{}: starting run {} for {}'.format(cfg.tool, rep, code_name))
-        print('run\tsamples\tmuts\tMAE\tMAEstd\twT\tn_FP\twT_FP\tn_FN\twT_FN')
+        print('run\tsamples\tmuts\tMAE\twT\tn_FP\twT_FP\tn_FN\twT_FN\tP\tR\tF1')
         for num_muts in which_num_muts:                 # gradually increase the number of mutations
             info_label = '{}\t{}\trun_{}\t{}'.format(cfg.tool, code_name, rep, num_muts)
             # prepare synthetic mutational catalogs
