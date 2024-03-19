@@ -6,7 +6,7 @@ library(dplyr)
 cosmic3 <- read.table("../input/COSMIC_v3_SBS_GRCh38-RELEVANT.txt", sep = "\t", row.names = 1, header = TRUE, check.names = FALSE)
 cosmic3 <- as.data.frame(t(cosmic3))
 mut_matrix <- read.csv("data/data_for_deconstructSigs.dat", sep = "\t", row.names = 1, header = TRUE, check.names = FALSE)
-mut_matrix <- as.data.frame(t(mut_matrix)) # to get the same format as randomly.generated.tumors
+mut_matrix <- as.data.frame(t(mut_matrix))
 identical(colnames(cosmic3), colnames(mut_matrix))
 
 

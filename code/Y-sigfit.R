@@ -8,7 +8,7 @@ counts <- build_catalogues(context_file)
 dim(counts)
 
 
-fit <- fit_signatures(counts = counts, signatures = cosmic3, chains = 1, seed = 0)    # iter = 6000, warmup = 2000
+fit <- fit_signatures(counts = counts, signatures = cosmic3, chains = 1, seed = 0)
 exposures <- retrieve_pars(fit, par = "exposures", hpd_prob = 0.90)
 x <- as.data.frame(exposures$mean) %>% mutate_if(is.numeric, round, digits = 4)
 write.csv(t(x), file = "signature_results/sigfit-contribution.dat")

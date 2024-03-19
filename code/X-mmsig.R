@@ -9,11 +9,11 @@ mut_mat <- read.csv("data/data_for_MutationalPatterns.dat", sep = "\t", row.name
 set.seed(0)
 sig_out <- mm_fit_signatures(muts.input=mut_mat,
                              sig.input=cosmic3,
-                             input.format = "classes", # other option: classes
-                             sample.sigt.profs = NULL,  # NULL = use all signatures provided in the reference. Optionally provide list with signatures to consider for each sample.
+                             input.format = "classes",
+                             sample.sigt.profs = NULL,  # NULL = use all signatures provided in the reference
                              strandbias = FALSE,
                              bootstrap = FALSE,
-                             refcheck=FALSE,    # check that input mutational catalog (if vcf-format) is aligned to hg19
+                             refcheck=FALSE,            # check that input mutational catalog (if vcf-format) is aligned to hg19
                              cos_sim_threshold = 0.01,  # cosine similarity threshold below which signatures are removed from the final profile
                              dbg=FALSE)
 
