@@ -1,5 +1,5 @@
 # SigFitTest
-SigFitTest is a package to create realistic synthetic mutational catalogs and to evaluate tools for fitting mutational signatures.
+SigFitTest is a Python package to create realistic synthetic mutational catalogs and to evaluate tools for fitting mutational signatures.
 
 
 ## How to use this package
@@ -23,7 +23,7 @@ In `main.py`, there are five main functions that you can use (comment or uncomme
 
 ### Practical points:
 * To run a fitting tool, the tool needs to be installed first following the instructions that come with that tool.
-* To find the available cancer types, see the directory `cosmic tissue data`.
+* To find the cancer types for which empirical signature activities are available, see the directory `cosmic tissue data`.
 * Several important variables are set in the file `MS_config.py` in the directory `code`:
   * `tool` (tool that will be run and evaluated),
   * `N_samples` (how many synthetic samples there are in each cohort; default: 100),
