@@ -97,7 +97,7 @@ def fit_with_cosmic3_synthetic_simple(sig_weights, code_name = 'set1'):
 
 # fitting syntetic mutational catalogs with empirical signatures weights, using all COSMICv3 signatures as a reference
 # out-of-reference signatures are assigned the weights given in out_of_reference_weights (default: no out-of-reference signatures)
-def fit_with_cosmic3_synthetic(cancer_types, code_name = 'set6', out_of_reference_weights = []):
+def fit_with_cosmic3_synthetic(cancer_types, code_name = 'set6', out_of_reference_weights = [], save_true_weights = False):
     tot_out_of_reference = sum(out_of_reference_weights)
     if tot_out_of_reference > 0: print('=== fitting synthetic mutational catalogs using COSMICv3; out-of-reference signatures have joint weight {:.4f} ==='.format(tot_out_of_reference))
     else: print('=== fitting synthetic mutational catalogs using COSMICv3 ===')
@@ -116,15 +116,17 @@ def fit_with_cosmic3_synthetic(cancer_types, code_name = 'set6', out_of_referenc
             # choose N_samples from all samples in the empirical signature distribution (with repetition)
             who = rng.choice(empirical.shape[0], size = cfg.N_samples, replace = True)
             for num_muts in cfg.num_muts_list_short:                # to gradually increase the number of mutations
-            # for num_muts in [50_000]:                               # to run on samples with a fixed number of mutations
                 contribs = generate_weights_empirical(num_muts, empirical.iloc[who].astype('double').reset_index(drop = True))
                 if contribs is not None:
+                    info_label = '{}\t{}\tw_{}\t{}'.format(cfg.tool, code_name, rep, num_muts)
                     if tot_out_of_reference > 0:
                         contribs *= (1 - tot_out_of_reference)
                         new_active = rng.choice(cfg.out_sigs, size = len(out_of_reference_weights), replace = False)
                         for n, weight in enumerate(out_of_reference_weights):
                             contribs[new_active[n]] = weight
-                    info_label = '{}\t{}\tw_{}\t{}'.format(cfg.tool, code_name, rep, num_muts)
+                    if save_true_weights:                           # save true signature contributions
+                        tmp = contribs[contribs.columns[(contribs.sum(axis = 0) != 0)]]
+                        tmp.to_csv('data/true_weights_{}_{}_w{}_{}.dat'.format(cancer_type, code_name, rep, num_muts), sep = '\t', float_format = '%.6f')
                     # prepare synthetic mutational catalogs
                     counts = prepare_data_from_signature_activity(rng = rng, num_muts = num_muts, contribs = contribs)
                     save_catalogs(counts = counts)
@@ -137,7 +139,9 @@ def fit_with_cosmic3_synthetic(cancer_types, code_name = 'set6', out_of_referenc
         # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
         system('zip ../signature_results-{}-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
         shutil.rmtree('signature_results')  # remove all result files
-        shutil.rmtree('data')               # remove the directory with synthetic data
+        # if save_true_weights:
+            # system('zip ../true_signature_weights-{}-{}.zip data/true_weights*.dat'.format(cancer_type, code_name))
+        # shutil.rmtree('data')               # remove the directory with synthetic data
     ttt.close()
     xxx.close()
     yyy.close()
@@ -274,7 +278,7 @@ def fit_with_cosmic3_subsampled_real_catalogs(code_name = 'set99', which_input =
 # generate mutational catalogs for the provided cancer types; use the fitting tool set in the variable 'tool' in MS_config.py; and evaluate the estimated signature weights; when out_of_reference_weights is specified, randomly chosen COSMICv3.3.1 signatures that are absent in COSMICv3 are assigned these weights
 # output: estimated signature weights ('signature_results-*.zip) and evaluation results (results-*.dat); these files are saved in the main directory, one level up from the directory code where main.py is located
 fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'])
-# fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'set98', out_of_reference_weights = [0.15, 0.05])
+fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'set7', out_of_reference_weights = [0.2, 0.1])
 
 
 # generate mutational catalogs for the provided cancer types; load the previously computed results of fit_cosmic3_and_evaluate ("set6"); use them to find which signatures are sufficiently active; fit the catalogs using the active signatures as a reference; evaluate the estimated signature weights
