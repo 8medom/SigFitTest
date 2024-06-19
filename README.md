@@ -21,15 +21,40 @@ In `main.py`, there are five main functions that you can use (comment or uncomme
 * `fit_with_cosmic3_subsampled_real_catalogs()`: Generates mutational catalogs by subsampling from real mutational catalogs stored in the directory `real mutational catalogs` and runs a fitting tool on them. The estimated signature activities are evaluated by comparing them with the ground truth result stored in the same directory (the ground truth is obtained by analyzing the complete real catalogs using three different fitting tools and averaging the contributions of all signatures that are identified by at least two tools).
 
 
-### Practical points:
+### Practical points
 * To run a fitting tool, the tool needs to be installed first following the instructions that come with that tool.
 * To find the cancer types for which empirical signature activities are available, see the directory `cosmic tissue data`.
 * Several important variables are set in the file `MS_config.py` in the directory `code`:
   * `tool` (tool that will be run and evaluated),
   * `N_samples` (how many synthetic samples there are in each cohort; default: 100),
   * `num_realizaions` (how many synthetic cohorts will be generated; default: 5),
-  * `timeout_time` (fitting tools are stopped if they do not finish until this time [in seconds]; you may need to increase it for slow tools such as mmsig, for example; default: 1800),
+  * `timeout_time` (fitting tools are stopped if they do not finish until this time (in seconds); you may need to increase it for slow tools such as mmsig, for example; default: 1800),
   * `num_muts_list_short` (how many mutations there will be in the synthetic catalogs; this is a list, catalog generation & fitting & evaluation are run separately for each number of mutations provided; default: [100, 2000, 50000]),
   * `input_signatures` (the reference signatures that are used to generate the catalogs; default: WGS COSMICv3.3.1; note that the empirical signature activities obtained from the COSMIC catalog contain only COSMICv3 signatures; the remaining signatures that are in COSMICv3.3.1 thus have zero activity unless the out_of_reference_weights variable is set for some of the functions described above).
 * The variable `code_name` is used to easily recognize the results obtained by the provided functions under various settings.
 * The content of `stdout` and `stderr` is saved in the files `stdout-tool_name.txt` and `stderr-tool_name.txt`. The content of these files can sometimes help you with troubleshooting.
+
+
+### Evaluation metrics
+Output files `results-*.dat` present the summary results for each synthetic cohort. These files contain the following columns:
+* `cancer_type`: The cancer type whose empirical signature weights in the COSMIC catalog were used to generate signature weights in synthetic samples,
+* `weights`: Realization counter,
+* `samples`: Number of samples in each cohort,
+* `muts`: Number of mutations in each sample,
+* `TAE`: Total Absolute Error (referred to as the fitting error in the article) averaged over all samples; this quantifies the difference between the true and estimated signature weights,
+* `TAE_std`: Standard deviation of the total absolute error (all other *_std columns are standard deviations of respective metrics),
+* `RMSE`: Root mean square error averaged over all samples,
+* `wT`: Total relative weight assigned to any signature, averaged over all samples,
+* `n_eff`: The effective number of signatures (inverse Herfindahl index) to which weights are assigned, averaged over all samples,
+* `TAE_TP`: Total Absolute Error computed only for true positives (i.e., the estimated active signatures that are active in a given sample),
+* `wT_FP`: Total relative weight assigned to false positives (i.e., the estimated active signatures that are *not* active in a given sample),
+* `n_FP`: Number of false positives per sample,
+* `wT_FN`: Total relative weight of false negatives (i.e., the estimated inactive signatures that are active in a given sample),
+* `n_FN`: Number of false negatives per sample,
+* `P`: Precision (i.e., the fraction of estimated active signatures that are true positives),
+* `R`: Recall/Sensitivity (i.e., the fraction of signatures active in a sample that are estimated to be active),
+* `S`: Specificity (i.e., the fraction of signatures inactive in a sample that are estimated to be inactive),
+* `F1`: F1 score, the harmonic mean of precision and recall,
+* `MCC`: Matthews correlation coefficient, a correlation between the true and estimated signature activities,
+* `Pearson`: Pearson correlation between the true and estimated signature weights, including only the signatures for which either true or estimated weight is positive, averaged over all samples,
+* `r_S*`: Pearson correlation between the true and estimated signature weights for all samples and one chosen signature (the list of five chosen signatures for each cancer type is in `MS_config.py` in the dictionary `top_sigs`).
