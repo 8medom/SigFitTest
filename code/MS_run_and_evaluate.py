@@ -6,11 +6,12 @@ import time                                             # to keep track of elaps
 from subprocess import Popen                            # to execute external scripts for fitting mutational signatures
 from threading import Timer                             # to time-out a process after a pre-defined time (cfg.timeout_time)
 import shlex                                            # to split a string using shell-like syntax
-import lzma                                             # to compress some result files for future analysis
+import lzma                                             # to compress result files for future analysis
 from scipy.stats import ranksums, pearsonr              # for evaluation of results
 import MS_config as cfg                                 # all global stuff
 
 
+# shorten a string for text output on the screen
 def shorten_string(s, max_length = 15):
     if len(s) <= max_length: return(s)
     else: return(s[:max_length - 3] + '...')
@@ -136,7 +137,7 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
     nMAE = err.mean()                           # mean of the fitting error over all samples
     nMAE_std = err.std()                        # std of the fitting error between the samples
     nRMSE = np.sqrt(np.power(err, 2).mean())    # root mean square witting error
-    wtot_FP, wtot_FP_squared, num_FP_sigs, wtot_FN, num_FN_sigs, MAE_active, pearson_vals, P_vals, R_vals, F_vals, S_vals = 0, 0, 0, 0, 0, 0, [], [], [], [], []
+    wtot_FP, wtot_FP_squared, num_FP_sigs, wtot_FN, num_FN_sigs, MAE_active, pearson_vals, P_vals, R_vals, S_vals, F_vals, MCC_vals = 0, 0, 0, 0, 0, 0, [], [], [], [], [], []
     for sample in true_res.columns:
         either_pos = (true_res[sample] > 0) | (df[sample] > 0)      # see how many signatures have positive true or estimated weight
         if either_pos.sum() >= 3:                                   # if they are at least three, compute the Pearson correlation between true and estimated weights (taking only those chosen signatures into account)
@@ -158,22 +159,26 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
                     num_FP_sigs += 1
                     num_FP += 1
                 else: num_TN += 1                                   # true negative
-        wtot_FP_one_sample /= num_muts
+        wtot_FP_one_sample /= num_muts                              # total weight assigned to false positive signatures in the sample
         wtot_FP_squared += wtot_FP_one_sample * wtot_FP_one_sample
-        if num_TP + num_FP > 0:
+        if num_TP + num_FP > 0:                                     # precision & recall/sensitivity
             Psample = num_TP / (num_TP + num_FP)
             Rsample = num_TP / (num_TP + num_FN)
         else:
             Psample = 0
             Rsample = 0
-        if Psample + Rsample > 0: Fsample = 2 * Psample * Rsample / (Psample + Rsample)
-        else: Fsample = 0
+        if num_TN + num_FP > 0:                                     # specificity (true negatives to all negatives)
+            Ssample = num_TN / (num_TN + num_FP)
+        else: Ssample = 0
+        if Psample + Rsample > 0:                                   # F1 score & Matthews correlation coefficient
+            Fsample = 2 * Psample * Rsample / (Psample + Rsample)
+            MCCsample = (num_TP * num_TN - num_FP * num_FN) / np.sqrt((num_TP + num_FP) * (num_TP + num_FN) * (num_TN + num_FP) * (num_TN + num_FN))
+        else: Fsample, MCCsample = 0, 0
         P_vals.append(Psample)
         R_vals.append(Rsample)
+        S_vals.append(Ssample)
         F_vals.append(Fsample)
-        if num_TN + num_FP > 0:
-            S_vals.append(num_TN / (num_TN + num_FP))
-        else: S_vals.append(0)
+        MCC_vals.append(MCCsample)
     MAE_active /= (2 * num_muts * df.shape[1])                      # normalize all metrics
     wtot_FP /= (num_muts * df.shape[1])
     wtot_FP_squared /= df.shape[1]
@@ -184,17 +189,18 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
     weight_tot = df.sum().mean() / num_muts                         # sum of the assigned weights, averaged over samples, normalized
     w_norm = df / df.sum()
     n_eff = np.ma.masked_invalid(1 / np.power(w_norm, 2).sum()).mean()  # effective number of estimated signatures per sample
+    if np.ma.is_masked(n_eff): n_eff = np.nan                       # if n_eff is masked for all samples, mean cannot be computed
     if len(pearson_vals) >= 3: pearson = np.nanmean(pearson_vals)
     else: pearson = np.nan
+    corr_out = ''
     if extra_col != None and extra_col in cfg.top_sigs.keys():      # for empirical weights, cohort-wide correlations for top signatures
-        corr_out = ''
         for sig in cfg.top_sigs[extra_col]:
             if true_res.loc[sig].std() > 0 and df.loc[sig].std() > 0:
                 pearson_value = pearsonr(true_res.loc[sig], df.loc[sig])[0]
             else: pearson_value = np.nan
             corr_out = corr_out + '\t{:.4f}'.format(pearson_value)
-    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals), np.mean(S_vals), np.std(S_vals), pearson, corr_out)
-    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], num_muts, nMAE, MAE_active, n_eff, weight_tot, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(F_vals), np.mean(S_vals), pearson)
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(S_vals), np.std(S_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals), pearson, corr_out)
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], num_muts, nMAE, MAE_active, n_eff, weight_tot, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(S_vals), np.mean(F_vals), np.mean(MCC_vals), pearson)
     if extra_col == None:
         if recommended: print(short_string + '(recommended settings)')
         else: print(short_string)
@@ -259,9 +265,9 @@ def evaluate_real_catalogs(info_label, true_res, num_muts, aaa_file, compress_re
     err = np.abs(df.sub(true_res, axis = 0)).sum() / 2
     nMAE = err.mean()                           # mean of the fitting error over all samples
     nMAE_std = err.std()                        # std of the fitting error between the samples
-    num_FP_values, wtot_FP_values, num_FN_values, wtot_FN_values, P_vals, R_vals, F_vals = [], [], [], [], [], [], []
+    num_FP_values, wtot_FP_values, num_FN_values, wtot_FN_values, P_vals, R_vals, F_vals, MCC_vals = [], [], [], [], [], [], [], []
     for sample in err.index:
-        num_FP, num_FN, num_TP, num_TN, wtot_FP, wtot_FN = 0, 0, 0, 0, 0, 0
+        num_FP, num_FN, num_TP, num_TN, wtot_FP, wtot_FN = 0, 0, 0, 0, 0, 0     # initialize error counters for this sample
         for sig in true_res.index:
             if true_res.loc[sig, sample] > 0:   # active signature
                 if df.loc[sig, sample] == 0:    # false negative
@@ -273,24 +279,29 @@ def evaluate_real_catalogs(info_label, true_res, num_muts, aaa_file, compress_re
                     wtot_FP += df.loc[sig, sample]
                     num_FP += 1
                 else: num_TN += 1
-        if num_TP + num_FP > 0:
+        if num_TP + num_FP > 0:                 # precision & recall
             Psample = num_TP / (num_TP + num_FP)
             Rsample = num_TP / (num_TP + num_FN)
         else:
             Psample = 0
             Rsample = 0
-        if Psample + Rsample > 0: Fsample = 2 * Psample * Rsample / (Psample + Rsample)
-        else: Fsample = 0
+        if Psample + Rsample > 0:               # F1 metric & Matthews correlation coefficient
+            Fsample = 2 * Psample * Rsample / (Psample + Rsample)
+            MCCsample = (num_TP * num_TN - num_FP * num_FN) / np.sqrt((num_TP + num_FP) * (num_TP + num_FN) * (num_TN + num_FP) * (num_TN + num_FN))
+        else:
+            Fsample = 0
+            MCCsamples = 0
         P_vals.append(Psample)
         R_vals.append(Rsample)
         F_vals.append(Fsample)
-        aaa_file.write('{}\t{}\t{}\t{:.4f}\t{:.4f}\t{}\t{:.4f}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(num_muts, which, sample, err[sample], df[sample].sum(), num_FP, wtot_FP, num_FN, wtot_FN, Psample, Rsample, Fsample))
+        MCC_vals.append(MCCsample)
+        aaa_file.write('{}\t{}\t{}\t{:.4f}\t{:.4f}\t{}\t{:.4f}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(num_muts, which, sample, err[sample], df[sample].sum(), num_FP, wtot_FP, num_FN, wtot_FN, Psample, Rsample, Fsample, MCCsample))
         num_FP_values.append(num_FP)
         wtot_FP_values.append(wtot_FP)
         num_FN_values.append(num_FN)
         wtot_FN_values.append(wtot_FN)
-    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals))
-    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], num_muts, nMAE, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.mean(R_vals), np.mean(F_vals))
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals))
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], num_muts, nMAE, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.mean(R_vals), np.mean(F_vals), np.mean(MCC_vals))
     if recommended: print(short_string + ' (recommended settings)')
     else: print(short_string)
     output_file.write(full_string)

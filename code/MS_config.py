@@ -1,7 +1,7 @@
 import pandas as pd                     # for data structures
 
 
-tool = 'SPA'                            # signature fitting tool to use; tool scripts named X-tool_name.R or X-tool_name.py
+tool = 'MutationalPatterns'             # signature fitting tool to use; tool scripts named X-tool_name.R or X-tool_name.py
 WGS_or_WES = 'WGS'                      # whether to use WGS or WES signatures
 N_samples = 100                         # number of synthetic samples are in each cohort
 num_realizations = 2                    # number of independent cohorts to generate
@@ -14,8 +14,8 @@ out_sigs = ['SBS10c', 'SBS10d', 'SBS86', 'SBS87', 'SBS88', 'SBS89', 'SBS90', 'SB
 tools_that_produce_relative_contributions = ['deconstructSigs', 'sigLASSO', 'sigfit', 'sigfit2', 'mmsig', 'SigsPack']       # these tools estimate relative signature weights (other tools are assumed to estimate absolute signature weights)
 Python_tools = ['SPSS', 'SPA', 'MuSiCal', 'MuSiCalFull']                            # all other tools are assumed to be R-based
 tools_with_recommended_settings = ['sigfit', 'deconstructSigs']                     # these tools have some recommended settings that are evaluated as well
-header_line = 'weights\tsamples\tmuts\tMAE\tMAE_TP\tn_eff\twT\twT_FP\tn_FP\twT_FN\tn_FN\tP\tR\tF1\tS\tPearson'              # header for the concise result tables (printed)
-header_line_full = 'weights\tsamples\tmuts\tMAE\tMAE_std\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\twT_FN\tn_FN\tP\tP_std\tR\tR_std\tF1\tF1_std\tS\tS_std\tPearson'      # header for the full result tables (saved)
+header_line = 'weights\tsamples\tmuts\tMAE\tMAE_TP\tn_eff\twT\twT_FP\tn_FP\twT_FN\tn_FN\tP\tR\tS\tF1\tMCC\tPearson'              # header for the concise result tables (printed)
+header_line_full = 'weights\tsamples\tmuts\tMAE\tMAE_std\tRMSE\twT\tn_eff\tMAE_TP\twT_FP\twT_FP_std\tn_FP\twT_FN\tn_FN\tP\tP_std\tR\tR_std\tS\tS_std\tF1\tF1_std\tMCC\tMCC_std\tPearson'      # header for the full result tables (saved)
 top_sigs = {'Liver-HCC': ['SBS5', 'SBS12', 'SBS1', 'SBS29', 'SBS40', 'SBS4'], 'Stomach-AdenoCA': ['SBS5', 'SBS18', 'SBS1', 'SBS17b', 'SBS17a', 'SBS3'], 'Head-SCC': ['SBS5', 'SBS13', 'SBS2', 'SBS1', 'SBS40', 'SBS18'], 'ColoRect-AdenoCA': ['SBS5', 'SBS1', 'SBS18', 'SBS40', 'SBS44', 'SBS10a'], 'Lung-AdenoCA': ['SBS4', 'SBS5', 'SBS13', 'SBS2', 'SBS1', 'SBS40'], 'Skin-Melanoma': ['SBS7a', 'SBS7b', 'SBS5', 'SBS7c', 'SBS7d', 'SBS1'], 'Lymph-BNHL': ['SBS40', 'SBS5', 'SBS1', 'SBS9', 'SBS17b', 'SBS3'], 'CNS-GBM': ['SBS40', 'SBS1', 'SBS5', 'SBS11', 'SBS37', 'SBS15']}  # for each cancer type, five most active signatures are listed; average correlation between true and estimated signature weights in the cohort is computed for them and saved in the result files
 
 
