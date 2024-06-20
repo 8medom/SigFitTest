@@ -8,6 +8,7 @@ num_realizations = 2                    # number of independent cohorts to gener
 timeout_time = 1600                     # fitting tools are killed after this time (increase to 8 hrs for mmsig and signature.tools.lib)
 num_muts_list = [50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]     # numbers of mutations for simple cohorts
 num_muts_list_short = [100, 2000, 50000]                                            # numbers of mutations for heterogeneous cohorts
+EPSILON = 1e-8                                                                      # for floating-point comparisons
 if WGS_or_WES == 'WGS': input_signatures = '../input/COSMIC_v3.3.1_SBS_GRCh38.txt'  # location of input WGS signatures
 else: input_signatures = '../input/COSMIC_v3_SBS_GRCh38-WES.txt'                    # location of input WES signatures
 out_sigs = ['SBS10c', 'SBS10d', 'SBS86', 'SBS87', 'SBS88', 'SBS89', 'SBS90', 'SBS91', 'SBS92', 'SBS93', 'SBS94', 'SBS95']   # signatures that are in COSMICv3.3.1 but they are not in COSMICv3 (they can be used as out-of-reference signatures for tools that use COSMICv3 as a reference)
