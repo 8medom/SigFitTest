@@ -1,16 +1,15 @@
 import numpy as np                                      # for numerics
 import pandas as pd                                     # for data structures
 import sys                                              # emergency stop
-from os.path import isfile                              # OS-level utilities
 import MS_config as cfg                                 # all global stuff
 
 
-# generate the number of mutations in all contexts for one sample
+# generate the mutational catalog (the number of mutations in all contexts) for one sample
 def generate_one_sample(rng, sample_name, num_muts, contribs_given):
-    if np.abs(contribs_given.sum() - 1) > 1e-12:
+    if np.abs(contribs_given.sum() - 1) > cfg.EPSILON:
         print('the sum of signature contributions must be one, now it differs by {:.2e}'.format(contribs_given.sum() - 1))
         sys.exit(1)
-    if np.any(contribs_given < 0):          # there must be no negative signature contributions
+    if np.any(contribs_given < 0):                                                      # signature contributions must be positive
         print('signature contributions must be non-negative, now the smallest one is {:.2e} in {}'.format(contribs_given.min(), sample_name))
         sys.exit(1)
     context_weights = pd.Series(0, index = cfg.input_sigs.index)                        # compute weights of tri-nucleotide contexts
@@ -22,7 +21,7 @@ def generate_one_sample(rng, sample_name, num_muts, contribs_given):
     return pd.DataFrame(counts, index = context_weights.index, columns = [sample_name]) # return the count array as a data frame
 
 
-# generate a mutational catalog driven by signature acitivity
+# generate mutational catalogs with num_muts where signature acitivity is driven by contribs
 def prepare_data_from_signature_activity(rng, num_muts, contribs):
     if contribs.ndim == 1:      # all samples have the same signature contributions
         counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs) for i in range(cfg.N_samples)], axis = 1)
@@ -34,7 +33,7 @@ def prepare_data_from_signature_activity(rng, num_muts, contribs):
     return counts
 
 
-# generate a mutational catalog by subsampling from a real mutational catalog
+# generate mutational catalogs with num_muts by subsampling from the (real) mutational catalog real_data
 def prepare_data_from_real_data_by_subsampling(rng, num_muts, real_data):
     counts = pd.DataFrame(0, index = real_data.index, columns = real_data.columns)
     for col in real_data.columns:               # go over samples one by one
@@ -42,13 +41,13 @@ def prepare_data_from_real_data_by_subsampling(rng, num_muts, real_data):
         if num_muts >= tot_muts:                # if too many mutations are required, skip the downsampling and copy all mutations
             counts[col] = real_data[col]
         else:
-            all_muts = [ix for ix in real_data.index for n in range(real_data.loc[ix, col])]    # a list with repeated contexts
+            all_muts = [ix for ix in real_data.index for n in range(real_data.loc[ix, col])]    # list with the contexts of all mutations
             chosen_muts = rng.choice(all_muts, size = num_muts, replace = False)                # choose the needed number of mutations
             for ix in chosen_muts: counts.loc[ix, col] += 1                                     # increment the corresponding entries
     return counts
 
 
-# saves created mutational catalog in various formats that can be used by the evaluated tools
+# save the created mutational catalogs in various formats that can be used by the evaluated fitting tools
 def save_catalogs(counts, info_label = None):
     if info_label == None: counts.to_csv('data/data_for_deconstructSigs.dat', sep = '\t')
     else: counts.to_csv('data/data_for_deconstructSigs_{}.dat'.format(info_label), sep = '\t')
@@ -97,13 +96,16 @@ def save_catalogs(counts, info_label = None):
     else: counts.to_csv('data/data_for_sigLASSO_spectrum_{}.dat'.format(info_label), sep = '\t')
 
 
-# generate empirically-driven signature contributions
+# generate empirically-driven signature contributions given by empirical_sub
+# the main task of this function is to drop the signatures that contribute less than 10 mutations for a given num_muts
+# the reason to do that is that they cannot be recovered as we use the threshold of 10 mutations for the resulting estimates
 def generate_weights_empirical(num_muts, empirical_sub, cohort_size = cfg.N_samples):
     for ix in empirical_sub.index:      # re-weight the signature contributions to match the required number of mutations
-        empirical_sub.loc[ix] = empirical_sub.loc[ix] * num_muts / empirical_sub.loc[ix].sum()
-    empirical_sub[empirical_sub < 10] = 0   # we remove weak signatures (those with the expected number of mutations below 10) because they cannot be recovered by the methods anyway (as we use the same threshold of 10 mutations for them)
+        empirical_sub.loc[ix] *= num_muts / empirical_sub.loc[ix].sum()
+    empirical_sub[empirical_sub < 10] = 0   # remove weak signatures (those with the expected number of mutations below 10)
     if (empirical_sub.sum(axis = 1) == 0).sum() > 0:
-        print('for num_muts = {} and realization {}, there is a sample with all absolute signature weights below 10\nwe skip this iteration'.format(num_muts, rep))
+        print('for num_muts = {} and realization {}, there is a sample with all absolute signature weights below 10'.format(num_muts, rep))
+        print('skipping this iteration...')
         return None
     for ix in empirical_sub.index:      # re-weight the signature contributions again to compensate for possible zeros introduced above
         empirical_sub.loc[ix] /= empirical_sub.loc[ix].sum()
@@ -114,12 +116,12 @@ def generate_weights_empirical(num_muts, empirical_sub, cohort_size = cfg.N_samp
     return contribs
 
 
-# introduce differences in signature which_sig between odd and even samples
+# introduce differences (quantified by difference_magnitude) in signature which_sig between odd and even samples
 def introduce_weight_differences(contribs, which_sig, difference_magnitude):
     for n, ix in enumerate(contribs.index):
-        if n % 2 == 1:  # odd samples have higher weights
+        if n % 2 == 1:                              # odd samples have higher weights
             contribs.loc[ix, which_sig] *= (1 + difference_magnitude)
-        else:
+        else:                                       # even samples have lower weights
             contribs.loc[ix, which_sig] /= (1 + difference_magnitude)
         contribs.loc[ix] /= contribs.loc[ix].sum()  # re-normalize the weights
     return contribs
