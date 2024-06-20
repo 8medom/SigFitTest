@@ -26,10 +26,7 @@ def prepare_data_from_signature_activity(rng, num_muts, contribs):
     if contribs.ndim == 1:      # all samples have the same signature contributions
         counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs) for i in range(cfg.N_samples)], axis = 1)
     elif contribs.ndim == 2:    # samples have different (e.g., empirically-driven) signature contributions
-        if contribs.shape[0] != cfg.N_samples:
-            print('mismatch between the provided signature contribution array with shape {} and the desired number of samples ({})'.format(contribs.shape, cfg.N_samples))
-            sys.exit(1)
-        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs.iloc[i]) for i in range(cfg.N_samples)], axis = 1)
+        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs.iloc[i]) for i in range(contribs.shape[0])], axis = 1)
     return counts
 
 
@@ -109,7 +106,8 @@ def generate_weights_empirical(num_muts, empirical_sub, cohort_size = cfg.N_samp
         return None
     for ix in empirical_sub.index:      # re-weight the signature contributions again to compensate for possible zeros introduced above
         empirical_sub.loc[ix] /= empirical_sub.loc[ix].sum()
-    contribs = pd.DataFrame(0, index = ['S{}'.format(x) for x in range(cohort_size)], columns = cfg.input_sigs.columns, dtype = float)  # create a data frame with all COSMIC signatures and their weights (this is then used as input for prepare_data)
+    # create a data frame with all COSMIC signatures and their weights (this is then used as input for prepare_data)
+    contribs = pd.DataFrame(0, index = ['S{}'.format(x) for x in range(cohort_size)], columns = cfg.input_sigs.columns, dtype = float)
     for ix in empirical_sub.index:      # save the generated signature weights in a data frame
         for sig in empirical_sub.columns:
             contribs.loc['S{}'.format(ix), sig] = empirical_sub.loc[ix, sig]

@@ -62,10 +62,10 @@ def check_open(oname, extra_col):
     if not isfile(oname):
         obj = open(oname, 'w')
         if extra_col == 'real_data':
-            obj.write('run\tsamples\tmuts\tMAE\tMAE_std\twT\tn_FP\twT_FP\tn_FN\twT_FN\tP\tP_std\tR\tR_std\tF1\tF1_std\n')
+            obj.write('run\tsamples\tmuts\tTAE\tTAE_std\twT\tn_FP\twT_FP\tn_FN\twT_FN\tP\tP_std\tR\tR_std\tF1\tF1_std\tMCC\tMCC_std\n')
         else:
             base = '\t'.join(cfg.header_line_full.split('\t')[1:])
-            if extra_col == None: obj.write('sig\t' + base + '\n')
+            if extra_col == None: obj.write('sig_weights\t' + base + '\n')
             else: obj.write('cancer_type\tweights\t' + base + '\tr_S1\tr_S2\tr_S3\tr_S4\tr_S5\tr_S6\n')
     else: obj = open(oname, 'a')
     return obj
@@ -141,7 +141,7 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
     for sample in true_res.columns:
         either_pos = (true_res[sample] > 0) | (df[sample] > 0)      # see how many signatures have positive true or estimated weight
         if either_pos.sum() >= 3:                                   # if they are at least three, compute the Pearson correlation between true and estimated weights (taking only those chosen signatures into account)
-            if np.std(true_res[sample][either_pos]) > 1e-8 and np.std(df[sample][either_pos]) > 1e-8:   # to avoid one set of results to be all identical values (Pearson correlation then cannot be computed)
+            if np.std(true_res[sample][either_pos]) > cfg.EPSILON and np.std(df[sample][either_pos]) > cfg.EPSILON:   # to avoid one set of results to be all identical values (Pearson correlation then cannot be computed)
                 pearson_vals.append(pearsonr(true_res[sample][either_pos], df[sample][either_pos])[0])
         wtot_FP_one_sample, num_TP, num_TN, num_FP, num_FN = 0, 0, 0, 0, 0
         for sig in true_res.index:
@@ -312,13 +312,13 @@ def evaluate_real_catalogs(info_label, true_res, num_muts, aaa_file, compress_re
 
 
 # Wilcoxon rank-sum test for two groups (odd- and even-numbered samples)
-def compare_weights(vals, info_label, extra_col, difference_magnitude, output_file):
+def compare_weights(vals, info_label, extra_col, which_sig, difference_magnitude, output_file):
     x, y = [], []
     for n, ix in enumerate(vals.index):
         if n % 2 == 0: x.append(vals[ix])
         else: y.append(vals[ix])
     res = ranksums(x = x, y = y)
-    out_string = '{}\t{}\t{}\t{:.4e}\n'.format(extra_col, info_label, difference_magnitude, res.pvalue)
+    out_string = '{}\t{}\t{}\t{}\t{:.4e}\n'.format(extra_col, which_sig, difference_magnitude, info_label, res.pvalue)
     print(out_string.strip())
     output_file.write(out_string)
     return res.pvalue
@@ -327,19 +327,19 @@ def compare_weights(vals, info_label, extra_col, difference_magnitude, output_fi
 # compare the weights of signature which_sig between odd- and even-numbered samples
 def compare_groups(info_label, which_sig, num_muts, difference_magnitude, true_res = None, extra_col = None):
     code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
-    oname = 'comparison_results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool)
+    oname = '../comparison_results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool)
     if not isfile(oname):                           # open the output file
         output_file = open(oname, 'w')
-        output_file.write('cancer_type\tresult_type\tscenario\tcohort_size\tweights\t#muts\tdifference_magnitude\tWilcoxon p-value\n')
+        output_file.write('cancer_type\ttarget_signature\tdifference_magnitude\tresult_type\tscenario\tcohort_size\tweights\t#muts\tWilcoxon p-value\n')
     else: output_file = open(oname, 'a')
     if info_label.startswith('actual weights'):     # compare true weights, not the estimates
-        pval = compare_weights(true_res[which_sig], info_label, extra_col, difference_magnitude, output_file)
+        pval = compare_weights(true_res[which_sig], info_label, extra_col, which_sig, difference_magnitude, output_file)
         output_file.close()
         return pval
     else:                                           # compare the estimated weights
         df = load_results(info_label, num_muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
         if df is not None:
-            compare_weights(df.loc[which_sig], info_label, extra_col, difference_magnitude, output_file)
+            compare_weights(df.loc[which_sig], info_label, extra_col, which_sig, difference_magnitude, output_file)
             rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-'), num_muts))
             system('lzma signature_results/contribution-{}-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-'), num_muts))
         output_file.close()
