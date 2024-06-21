@@ -237,29 +237,30 @@ def fit_with_cosmic3_synthetic_compare_groups(cancer_types, code_name, which_sig
                 # choose cohort_size samples from all samples in the empirical signature distribution (with repetition)
                 who = rng.choice(empirical.shape[0], size = cohort_size, replace = True)
                 contribs = generate_weights_empirical(200, empirical.iloc[who].astype('double').reset_index(drop = True), cohort_size = cohort_size)    # all signatures with weight < 0.05 are set to zero (they are weak signatures contributing less than 10 mutations; 200 * 0.05 = 10)
-                if tot_out_of_reference > 0:                        # introduce out-of-reference signatures if necessary
+                if tot_out_of_reference > 0:                            # introduce out-of-reference signatures if necessary
                     contribs *= (1 - tot_out_of_reference)
                     new_active = rng.choice(cfg.out_sigs, size = len(out_of_reference_weights), replace = False)
                     for n, weight in enumerate(out_of_reference_weights):
                         contribs[new_active[n]] = weight
-                if save_true_weights:                               # save true signature contributions
+                if save_true_weights:                                   # save true signature contributions
                     tmp = contribs[contribs.columns[(contribs.sum(axis = 0) != 0)]]
                     tmp.to_csv('data/true_weights_{}_{}_w{}_{}.dat'.format(cancer_type, code_name, rep, num_muts), sep = '\t', float_format = '%.6f')
                 contribs = introduce_weight_differences(contribs, which_sig, difference_magnitude)
                 info_label = '{}\t{}\t{}\tw_{}\t{}'.format('actual weights', code_name, cohort_size, rep, 0)
                 significance_value = compare_groups(info_label, which_sig, 0, difference_magnitude, true_res = contribs, extra_col = cancer_type)
-                for n, num_muts in enumerate([100, 1000, 10000]):   # gradually increase the number of mutations
-                    info_label = '{}\t{}\t{}\tw_{}\t{}'.format(cfg.tool, code_name, cohort_size, rep, num_muts)
-                    # prepare synthetic mutational catalogs
-                    counts = prepare_data_from_signature_activity(rng = rng, num_muts = num_muts, contribs = contribs)
-                    save_catalogs(counts = counts)
-                    # data frame with true signature contributions
-                    true_res = num_muts * contribs
-                    # run the fitting tool defined in variable tool in MS_config.py
-                    timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type)
-                    # evaluate the estimated signature weights
-                    evaluate_main(info_label, true_res.T, num_muts, extra_col = cancer_type, compress_result_file = False)
-                    compare_groups(info_label, which_sig, num_muts, difference_magnitude, extra_col = cancer_type)
+                if significance_value <= 0.05:                          # if true weights differ significantly, fit mutational catalogs
+                    for n, num_muts in enumerate([100, 1000, 10000]):   # gradually increase the number of mutations
+                        info_label = '{}\t{}\t{}\tw_{}\t{}'.format(cfg.tool, code_name, cohort_size, rep, num_muts)
+                        # prepare synthetic mutational catalogs
+                        counts = prepare_data_from_signature_activity(rng = rng, num_muts = num_muts, contribs = contribs)
+                        save_catalogs(counts = counts)
+                        # data frame with true signature contributions
+                        true_res = num_muts * contribs
+                        # run the fitting tool defined in variable tool in MS_config.py
+                        timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type)
+                        # evaluate the estimated signature weights
+                        evaluate_main(info_label, true_res.T, num_muts, extra_col = cancer_type, compress_result_file = False)
+                        compare_groups(info_label, which_sig, num_muts, difference_magnitude, extra_col = cancer_type)
         # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
         system('zip ../signature_results-{}-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
         if cfg.tool == 'sigfit':
@@ -282,7 +283,11 @@ def fit_with_cosmic3_synthetic_compare_groups(cancer_types, code_name, which_sig
 def fit_with_cosmic3_subsampled_real_catalogs(code_name, real_catalogs = 'chosen_samples_WGS_PCAWG-input_profiles.dat', real_GT = 'chosen_samples_WGS_PCAWG-GT_averaged_consensus2.dat', GT_normalized = True):
     print('=== fitting subsampled real mutational catalogs using COSMICv3 ===')
     ttt = open('../running_times-{}-{}.dat'.format(cfg.WGS_or_WES, cfg.tool), 'a')
-    aaa = open('../individual_samples-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), 'a')
+    oname = '../individual_samples-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool)
+    if not isfile(oname):                               # output file with results for individual samples
+        aaa = open(oname, 'w')
+        aaa.write('muts\trun\tsample\tTAE\twT\tn_FP\twT_FP\tn_FN\twT_FN\tP\tR\tF1\tMCC\n')
+    else: aaa = open(oname, 'a')
     xxx = open('../stdout-{}.txt'.format(cfg.tool), 'a')
     yyy = open('../stderr-{}.txt'.format(cfg.tool), 'a')
     if not isdir('data'): mkdir('data')
