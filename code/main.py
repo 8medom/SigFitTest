@@ -38,7 +38,7 @@ matus.medo@unifr.ch, 2024
 # # output: estimated signature weights ('signature_results-*.zip) and evaluation results (results-*.dat); these files
 # # are saved in the main directory, one level up from the directory code where main.py is located
 # # example calls:
-# fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'SET3')
+fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'SET3')
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = [0.1, 0.1], code_name = 'SET6')
 
 
@@ -70,4 +70,4 @@ matus.medo@unifr.ch, 2024
 # # results for individual samples (individual_samples-*.dat); these files are saved in the main directory, one level
 # # up from the directory code where main.py is located
 # # example calls:
-fit_with_cosmic3_subsampled_real_catalogs(code_name = 'SET7')
+# fit_with_cosmic3_subsampled_real_catalogs(code_name = 'SET7')
