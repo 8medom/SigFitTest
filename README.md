@@ -34,6 +34,7 @@ In `main.py`, there are five main functions that you can use (comment or uncomme
   * `input_signatures` (the reference signatures that are used to generate the catalogs; default: WGS COSMICv3.3.1; note that the empirical signature activities obtained from the COSMIC catalog contain only COSMICv3 signatures; the remaining signatures that are in COSMICv3.3.1 thus have zero activity unless the out_of_reference_weights variable is set for some of the functions described above).
 * The variable `code_name` is used to easily recognize the results obtained by the provided functions under various settings.
 * The content of `stdout` and `stderr` is saved in the files `stdout-tool_name.txt` and `stderr-tool_name.txt`. The content of these files can sometimes help you with troubleshooting.
+* There are now scripts for 12 fitting tools: deconstructSigs, mmsig, MuSiCal, MutationalPatterns, sigfit, sigLASSO, sigminer (in three variants: NNLS, QP, and SA), signature.tools.lib (referred to as signature_tools), SigProfilerAssignment (referred to as SPA), SigProfilerSingleSample (referred to as SPSS), SigsPack, and YAPSA.
 
 
 ### Evaluation metrics
