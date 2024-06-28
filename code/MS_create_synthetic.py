@@ -5,7 +5,7 @@ import MS_config as cfg                                 # all global stuff
 
 
 # generate the mutational catalog (the number of mutations in all contexts) for one sample
-def generate_one_sample(rng, sample_name, num_muts, contribs_given):
+def generate_one_sample(rng, sample_name, num_muts_here, contribs_given):
     if np.abs(contribs_given.sum() - 1) > cfg.EPSILON:
         print('the sum of signature contributions must be one, now it differs by {:.2e}'.format(contribs_given.sum() - 1))
         sys.exit(1)
@@ -17,30 +17,30 @@ def generate_one_sample(rng, sample_name, num_muts, contribs_given):
         context_weights += contribs_given[sig] * cfg.input_sigs[sig]
     context_weights /= context_weights.sum()                                            # make sure that the weights sum to 1
     counts = np.zeros(96, dtype = int)                                                  # empty count array
-    np.add.at(counts, rng.choice(96, p = context_weights, size = num_muts), 1)          # generate mutation positions
+    np.add.at(counts, rng.choice(96, p = context_weights, size = num_muts_here), 1)     # generate mutation positions
     return pd.DataFrame(counts, index = context_weights.index, columns = [sample_name]) # return the count array as a data frame
 
 
-# generate mutational catalogs with num_muts where signature acitivity is driven by contribs
-def prepare_data_from_signature_activity(rng, num_muts, contribs):
+# generate mutational catalogs with muts where signature acitivity is driven by contribs
+def prepare_data_from_signature_activity(rng, muts, contribs):
     if contribs.ndim == 1:      # all samples have the same signature contributions
-        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs) for i in range(cfg.N_samples)], axis = 1)
+        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), muts.iloc[i], contribs) for i in range(cfg.N_samples)], axis = 1)
     elif contribs.ndim == 2:    # samples have different (e.g., empirically-driven) signature contributions
-        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), num_muts, contribs.iloc[i]) for i in range(contribs.shape[0])], axis = 1)
+        counts = pd.concat([generate_one_sample(rng, 'S{}'.format(i), muts.iloc[i], contribs.iloc[i]) for i in range(contribs.shape[0])], axis = 1)
     return counts
 
 
-# generate mutational catalogs with num_muts by subsampling from the (real) mutational catalog real_data
-def prepare_data_from_real_data_by_subsampling(rng, num_muts, real_data):
+# generate mutational catalogs by subsampling from the (real) mutational catalog real_data
+def prepare_data_from_real_data_by_subsampling(rng, muts, real_data):
     counts = pd.DataFrame(0, index = real_data.index, columns = real_data.columns)
-    for col in real_data.columns:               # go over samples one by one
-        tot_muts = real_data[col].sum()
-        if num_muts >= tot_muts:                # if too many mutations are required, skip the downsampling and copy all mutations
-            counts[col] = real_data[col]
+    for sample in real_data.columns:            # go over samples one by one
+        tot_muts = real_data[sample].sum()
+        if muts[sample] >= tot_muts:            # if too many mutations are required, skip the downsampling and copy all mutations
+            counts[sample] = real_data[sample]
         else:
-            all_muts = [ix for ix in real_data.index for n in range(real_data.loc[ix, col])]    # list with the contexts of all mutations
-            chosen_muts = rng.choice(all_muts, size = num_muts, replace = False)                # choose the needed number of mutations
-            for ix in chosen_muts: counts.loc[ix, col] += 1                                     # increment the corresponding entries
+            all_muts = [ix for ix in real_data.index for n in range(real_data.loc[ix, sample])] # list with the contexts of all mutations
+            chosen_muts = rng.choice(all_muts, size = muts[sample], replace = False)            # choose the needed number of mutations
+            for ix in chosen_muts: counts.loc[ix, sample] += 1                                  # increment the corresponding entries
     return counts
 
 

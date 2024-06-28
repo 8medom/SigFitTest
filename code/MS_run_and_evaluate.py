@@ -17,15 +17,16 @@ def shorten_string(s, max_length = 15):
     else: return(s[:max_length - 3] + '...')
 
 
-# prepare subsets of the default COSMIC signatures; these subsets can be either defined by which signatures are active for a given cancer type (when active_sigs == None) or by which signatures are active in previously computed fitting results (those signatures are then passed as a list in active_sigs)
+# prepare subsets of the default COSMIC signatures; these subsets can be either defined by which signatures are active for a given cancer type (when chosen_sigs == None) or by which signatures are found in previously computed fitting results (those signatures are then passed as a list in chosen_sigs)
 # the generated subsets are formatted for all evaluated tools and their names have suffix RELEVANT
-def prepare_relevant_COSMIC(cancer_type, also_artefacts = False, active_sigs = None):
-    tmp = pd.read_csv('../cosmic tissue data/signature_contributions_{}_{}.dat'.format(cfg.WGS_or_WES, cancer_type), sep = '\t', index_col = 'Sample')
+def prepare_relevant_COSMIC(cancer_type = None, also_artefacts = False, chosen_sigs = None):
+    if cancer_type != None:                             # if cancer_type is given, read the list of signatures active in the tissue data
+        tmp = pd.read_csv('../cosmic tissue data/signature_contributions_{}_{}.dat'.format(cfg.WGS_or_WES, cancer_type), sep = '\t', index_col = 'Sample')
     df = pd.read_csv('../input/COSMIC_v3_SBS_GRCh38.txt', sep = '\t', index_col = 'Type')
     cols_to_save = []
     for col in df.columns:                              # to get the default order of signatures
-        if active_sigs != None:                         # if a list of signatures is provided, use only them
-            if col in active_sigs: cols_to_save.append(col)
+        if chosen_sigs != None:                         # if a list of signatures is provided, use only them
+            if col in chosen_sigs: cols_to_save.append(col)
         else:                                           # otherwise, use the COSMIC tissue signatures
             if also_artefacts:
                 if col in tmp.columns or col in cfg.artifact_sigs: cols_to_save.append(col)
@@ -90,14 +91,17 @@ def timeout_run(info_label, ttt, xxx, yyy, timeout_sec = cfg.timeout_time, extra
     t_end = time.time()
     parts = info_label.split('\t')
     if extra_col == None:
-        ttt.write('{}\t{}\t{}\t{:.1f}\n'.format(parts[1], parts[2], parts[3], t_end - t_start))
-    else:
+        if info_label.count('\t') == 1:     # for the analysis of external data where the realization (parts[2]) and mean_num_muts (parts[3]) are undefined
+            ttt.write('{}\t{:.1f}\n'.format(parts[1], t_end - t_start))
+        else:                               # for simple cohorts
+            ttt.write('{}\t{}\t{}\t{:.1f}\n'.format(parts[1], parts[2], parts[3], t_end - t_start))
+    else:                                   # for heterogeneous cohorts where extra_col stores the cancer type
         ttt.write('{}_{}\t{}\t{}\t{:.1f}\n'.format(parts[1], extra_col, parts[2], parts[3], t_end - t_start))
     ttt.flush()
 
 
-# try to load the result file
-def load_results(info_label, num_muts, extra_col, fname):
+# load the result file, return absolute signature contributions
+def load_results(info_label, muts, extra_col, fname):
     try:
         df = pd.read_csv(fname, sep = ',')
     except:
@@ -112,17 +116,19 @@ def load_results(info_label, num_muts, extra_col, fname):
         df = df.rename(columns={'Unnamed: 0': 'signature'})
         df = df.set_index('signature', drop = True)
         if cfg.tool in cfg.tools_that_produce_relative_contributions:   # switch from relative to absolute signature contributions
-            df *= num_muts
+            df = (df.T * muts).T                                        # number of mutations is a series (different for each sample)
         df[df < 10] = 0                                                 # signatures contributing less than 10 mutations are set to zero
         return df
 
 
 # compute the evaluation metrics for df when true weights are true_res
-def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = False):
+def eval_results(info_label, true_res, muts, df, extra_col, recommended = False):
     if true_res.ndim == 1:                      # possible legacy issue: true_res is a vector (i.e., all samples have the same composition)
         print('true_res should be a DataFrame specifying the true signature weight for each sample, not a vector')
         sys.exit(1)
-    code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
+    if info_label.count('\t') == 1:
+        code_name, which = info_label.split('\t')[1], 'N/A'
+    else: code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
     if recommended:
         output_file = check_open('../results-{}-{}-{}_recommended.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
     else:
@@ -133,10 +139,10 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
     for ix in true_res.index:                   # to make sure that signatures from the true result are not missing in the results
         if ix not in df.index:
             df.loc[ix] = 0
-    err = df.sub(true_res, axis = 0).abs().sum() / (2 * num_muts)   # total fitting error for each sample; factor 1/2 is introduced to make it bound to the range [0, 1]
-    nMAE = err.mean()                           # mean of the fitting error over all samples
-    nMAE_std = err.std()                        # std of the fitting error between the samples
-    nRMSE = np.sqrt(np.power(err, 2).mean())    # root mean square witting error
+    err = df.sub(true_res, axis = 0).abs().sum() / (2 * muts)   # total absolute error (aka "fitting error") for each sample
+    TAE = err.mean()                                            # mean of the fitting error over all samples
+    TAE_std = err.std()                                         # std of the fitting error between the samples
+    nRMSE = np.sqrt(np.power(err, 2).mean())                    # root mean square witting error
     wtot_FP, wtot_FP_squared, num_FP_sigs, wtot_FN, num_FN_sigs, MAE_active, pearson_vals, P_vals, R_vals, S_vals, F_vals, MCC_vals = 0, 0, 0, 0, 0, 0, [], [], [], [], [], []
     for sample in true_res.columns:
         either_pos = (true_res[sample] > 0) | (df[sample] > 0)      # see how many signatures have positive true or estimated weight
@@ -146,20 +152,20 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
         wtot_FP_one_sample, num_TP, num_TN, num_FP, num_FN = 0, 0, 0, 0, 0
         for sig in true_res.index:
             if true_res.loc[sig, sample] > 0:                       # active signature
-                MAE_active += np.abs(df.loc[sig, sample] - true_res.loc[sig, sample])   # increment the error for active signatures
+                MAE_active += np.abs(df.loc[sig, sample] - true_res.loc[sig, sample]) / muts[sample]    # error for active signatures
                 if df.loc[sig, sample] == 0:                        # false negative
-                    wtot_FN += true_res.loc[sig, sample]
+                    wtot_FN += true_res.loc[sig, sample] / muts[sample]
                     num_FN_sigs += 1
                     num_FN += 1
                 else: num_TP += 1
             else:                                                   # inactive signature
                 if df.loc[sig, sample] > 0:                         # false positive
-                    wtot_FP += df.loc[sig, sample]                  # increment the average weight assigned to inactive signatures
+                    wtot_FP += df.loc[sig, sample] / muts[sample]   # increment the average weight assigned to inactive signatures
                     wtot_FP_one_sample += df.loc[sig, sample]       # the same but for this one sample only
                     num_FP_sigs += 1
                     num_FP += 1
                 else: num_TN += 1                                   # true negative
-        wtot_FP_one_sample /= num_muts                              # total weight assigned to false positive signatures in the sample
+        wtot_FP_one_sample /= muts[sample]                          # total weight assigned to false positive signatures in the sample
         wtot_FP_squared += wtot_FP_one_sample * wtot_FP_one_sample
         if num_TP + num_FP > 0:                                     # precision & recall/sensitivity
             Psample = num_TP / (num_TP + num_FP)
@@ -179,14 +185,14 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
         S_vals.append(Ssample)
         F_vals.append(Fsample)
         MCC_vals.append(MCCsample)
-    MAE_active /= (2 * num_muts * df.shape[1])                      # normalize all metrics
-    wtot_FP /= (num_muts * df.shape[1])
+    MAE_active /= (2 * df.shape[1])                                 # normalize all metrics
+    wtot_FP /= df.shape[1]
     wtot_FP_squared /= df.shape[1]
     wtot_FP_squared -= wtot_FP * wtot_FP
     num_FP_sigs /= df.shape[1]                                      # average number of false positive signatures per sample
-    wtot_FN /= (num_muts * df.shape[1])
+    wtot_FN /= df.shape[1]
     num_FN_sigs /= df.shape[1]                                      # average number of false negative signatures per sample
-    weight_tot = df.sum().mean() / num_muts                         # sum of the assigned weights, averaged over samples, normalized
+    weight_tot = (df.sum() / muts).mean()                           # sum of the assigned weights, averaged over samples, normalized
     w_norm = df / df.sum()
     n_eff = np.ma.masked_invalid(1 / np.power(w_norm, 2).sum()).mean()  # effective number of estimated signatures per sample
     if np.ma.is_masked(n_eff): n_eff = np.nan                       # if n_eff is masked for all samples, mean cannot be computed
@@ -199,8 +205,9 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
                 pearson_value = pearsonr(true_res.loc[sig], df.loc[sig])[0]
             else: pearson_value = np.nan
             corr_out = corr_out + '\t{:.4f}'.format(pearson_value)
-    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(S_vals), np.std(S_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals), pearson, corr_out)
-    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], num_muts, nMAE, MAE_active, n_eff, weight_tot, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(S_vals), np.mean(F_vals), np.mean(MCC_vals), pearson)
+    mean_num_muts = '{:.0f}'.format(muts.mean())
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(which, df.shape[1], mean_num_muts, TAE, TAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(S_vals), np.std(S_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals), pearson, corr_out)
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], mean_num_muts, TAE, MAE_active, n_eff, weight_tot, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(S_vals), np.mean(F_vals), np.mean(MCC_vals), pearson)
     if extra_col == None:
         if recommended: print(short_string + '(recommended settings)')
         else: print(short_string)
@@ -213,10 +220,10 @@ def eval_results(info_label, true_res, num_muts, df, extra_col, recommended = Fa
 
 
 # main function for evaluating the estimated signature weights
-def evaluate_main(info_label, true_res, num_muts, extra_col = None, compress_result_file = True):
-    df = load_results(info_label, num_muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
+def evaluate_main(info_label, true_res, muts, extra_col = None, compress_result_file = True):
+    df = load_results(info_label, muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
     if df is not None:
-        eval_results(info_label, true_res, num_muts, df, extra_col)
+        eval_results(info_label, true_res, muts, df, extra_col)
         if cfg.tool.startswith('sigfit'):    # use recommended options for sigfit
             dfx = pd.read_csv('signature_results/{}-contribution_lower90.dat'.format(cfg.tool), sep = ',') # lower estimate
             dfx = dfx.rename(columns={'Unnamed: 0': 'signature'})
@@ -224,18 +231,18 @@ def evaluate_main(info_label, true_res, num_muts, extra_col = None, compress_res
             df2 = pd.read_csv('signature_results/{}-contribution.dat'.format(cfg.tool), sep = ',') # load the results
             df2 = df2.rename(columns={'Unnamed: 0': 'signature'})
             df2 = df2.set_index('signature', drop = True)
-            df2[dfx < 0.01] = 0    # sigfit vignette: " In practice, ‘sufficiently non-zero’ means that the lower end of the Bayesian HPD interval (see the previous section) is above a threshold value close to zero (by default 0.01, and adjustable via the thresh argument)."
-            df2 *= num_muts
+            df2[dfx < 0.01] = 0     # sigfit vignette: " In practice, ‘sufficiently non-zero’ means that the lower end of the Bayesian HPD interval (see the previous section) is above a threshold value close to zero (by default 0.01, and adjustable via the thresh argument)."
+            df2 = (df2.T * muts).T  # number of mutations is a series (different for each sample)
             df2[df2 < 10] = 0
-            eval_results(info_label, true_res, num_muts, df2, extra_col, recommended = True)
+            eval_results(info_label, true_res, muts, df2, extra_col, recommended = True)
         elif cfg.tool == 'deconstructSigs': # use recommended options for deconstructSigs
             df2 = pd.read_csv('signature_results/{}-contribution.dat'.format(cfg.tool), sep = ',') # load the results
             df2 = df2.rename(columns={'Unnamed: 0': 'signature'})
             df2 = df2.set_index('signature', drop = True)
-            df2[df2 < 0.06] = 0    # by default, deconstructSigs uses "signature.cutoff = 0.06"
-            df2 *= num_muts
+            df2[df2 < 0.06] = 0     # deconstructSigs vignette: "...by default, deconstructSigs uses "signature.cutoff = 0.06""
+            df2 = (df2.T * muts).T
             df2[df2 < 10] = 0
-            eval_results(info_label, true_res, num_muts, df2, extra_col, recommended = True)
+            eval_results(info_label, true_res, muts, df2, extra_col, recommended = True)
         if compress_result_file:
             simplified_label = info_label.replace('\t', '-').replace('(', '_').replace(')', '')
             if extra_col != None: simplified_label = extra_col + '-' + simplified_label
@@ -244,11 +251,11 @@ def evaluate_main(info_label, true_res, num_muts, extra_col = None, compress_res
 
 
 # evaluate the signature weights estimated for subsampled real mutational catalogs
-def evaluate_real_catalogs(info_label, true_res, num_muts, aaa_file, compress_result_file = True, extra_col = 'real_data'):
+def evaluate_real_catalogs(info_label, true_res, muts, aaa_file, compress_result_file = True, extra_col = 'real_data'):
     code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
-    df = load_results(info_label, num_muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
-    for col in df.columns:                      # normalize the loaded results to weighted signature contributions
-        df[col] /= num_muts
+    df = load_results(info_label, muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
+    for sample in df.columns:                   # normalize the loaded results to weighted signature contributions
+        df[sample] /= muts[sample]
     recommended = False
     if cfg.tool == 'deconstructSigs':           # by default, deconstructSigs uses "signature.cutoff = 0.06"
         df[df < 0.06] = 0
@@ -263,8 +270,8 @@ def evaluate_real_catalogs(info_label, true_res, num_muts, aaa_file, compress_re
         output_file = check_open('../results-{}-{}-{}_recommended.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
     else: output_file = check_open('../results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
     err = np.abs(df.sub(true_res, axis = 0)).sum() / 2
-    nMAE = err.mean()                           # mean of the fitting error over all samples
-    nMAE_std = err.std()                        # std of the fitting error between the samples
+    TAE = err.mean()                            # mean of the fitting error over all samples
+    TAE_std = err.std()                         # std of the fitting error between the samples
     num_FP_values, wtot_FP_values, num_FN_values, wtot_FN_values, P_vals, R_vals, F_vals, MCC_vals = [], [], [], [], [], [], [], []
     for sample in err.index:
         num_FP, num_FN, num_TP, num_TN, wtot_FP, wtot_FN = 0, 0, 0, 0, 0, 0     # initialize error counters for this sample
@@ -295,13 +302,14 @@ def evaluate_real_catalogs(info_label, true_res, num_muts, aaa_file, compress_re
         R_vals.append(Rsample)
         F_vals.append(Fsample)
         MCC_vals.append(MCCsample)
-        aaa_file.write('{}\t{}\t{}\t{:.4f}\t{:.4f}\t{}\t{:.4f}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(num_muts, which, sample, err[sample], df[sample].sum(), num_FP, wtot_FP, num_FN, wtot_FN, Psample, Rsample, Fsample, MCCsample))
+        aaa_file.write('{}\t{}\t{}\t{:.4f}\t{:.4f}\t{}\t{:.4f}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(muts[sample], which, sample, err[sample], df[sample].sum(), num_FP, wtot_FP, num_FN, wtot_FN, Psample, Rsample, Fsample, MCCsample))
         num_FP_values.append(num_FP)
         wtot_FP_values.append(wtot_FP)
         num_FN_values.append(num_FN)
         wtot_FN_values.append(wtot_FN)
-    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], num_muts, nMAE, nMAE_std, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals))
-    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], num_muts, nMAE, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.mean(R_vals), np.mean(F_vals), np.mean(MCC_vals))
+    mean_num_muts = '{:.0f}'.format(muts.mean())
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], mean_num_muts, TAE, TAE_std, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals))
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], mean_num_muts, TAE, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.mean(R_vals), np.mean(F_vals), np.mean(MCC_vals))
     if recommended: print(short_string + ' (recommended settings)')
     else: print(short_string)
     output_file.write(full_string)
@@ -325,7 +333,7 @@ def compare_weights(vals, info_label, extra_col, which_sig, difference_magnitude
 
 
 # compare the weights of signature which_sig between odd- and even-numbered samples
-def compare_groups(info_label, which_sig, num_muts, difference_magnitude, true_res = None, extra_col = None):
+def compare_groups(info_label, which_sig, muts, difference_magnitude, true_res = None, extra_col = None):
     code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
     oname = '../comparison_results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool)
     if not isfile(oname):                           # open the output file
@@ -337,9 +345,10 @@ def compare_groups(info_label, which_sig, num_muts, difference_magnitude, true_r
         output_file.close()
         return pval
     else:                                           # compare the estimated weights
-        df = load_results(info_label, num_muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
+        df = load_results(info_label, muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
         if df is not None:
             compare_weights(df.loc[which_sig], info_label, extra_col, which_sig, difference_magnitude, output_file)
-            rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-'), num_muts))
-            system('lzma signature_results/contribution-{}-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-'), num_muts))
+            mean_num_muts = '{:.0f}'.format(muts.mean())
+            rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-'), mean_num_muts))
+            system('lzma signature_results/contribution-{}-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-'), mean_num_muts))
         output_file.close()
