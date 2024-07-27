@@ -103,7 +103,7 @@ def timeout_run(info_label, ttt, xxx, yyy, timeout_sec = cfg.timeout_time, extra
 # load the result file, return absolute signature contributions
 def load_results(info_label, muts, extra_col, fname):
     try:
-        df = pd.read_csv(fname, sep = ',')
+        df = pd.read_csv(fname, sep = ',', index_col = 0)               # first column contains the fitted signatures
     except:
         if extra_col == None: out_string = 'no results for {}, {}\n'.format(extra_col, info_label)
         else: out_string = 'no results for {} & {}\n'.format(extra_col, info_label)
@@ -113,10 +113,8 @@ def load_results(info_label, muts, extra_col, fname):
         ppp.close()
         return None
     else:
-        df = df.rename(columns={'Unnamed: 0': 'signature'})
-        df = df.set_index('signature', drop = True)
         if cfg.tool in cfg.tools_that_produce_relative_contributions:   # switch from relative to absolute signature contributions
-            df = (df.T * muts).T                                        # number of mutations is a series (different for each sample)
+            df = df * muts                                              # number of mutations is a series (different for each sample)
         df[df < 10] = 0                                                 # signatures contributing less than 10 mutations are set to zero
         return df
 
