@@ -357,17 +357,11 @@ def fit_external(input_catalog, catalog_GT, code_name, reference_signatures = No
     yyy = open('../stderr-{}.txt'.format(cfg.tool), 'a')
     if not isdir('data'): mkdir('data')
     if not isdir('signature_results'): mkdir('signature_results')
-    print('\n{}: starting the analysis of {} with the ground truth from {}'.format(cfg.tool, input_catalog, catalog_GT))
-    if reference_signatures == None:
-        print('all COSMICv3 signatures are used as a reference')
-        which_setup = 'X'   # tool scripts starting with X use all COSMICv3 signatures as a reference
-    else:
-        print('a specified list of {} reference signatures is used as a reference'.format(len(reference_signatures)))
-        which_setup = 'Y'   # tool scripts starting with Y use selected COSMICv3 signatures as a reference
-        prepare_relevant_COSMIC(found_sigs = reference_signatures)
     counts = pd.read_csv(input_catalog, sep = None, index_col = 0, engine = 'python')   # load the mutational catalog
     counts = counts.reindex(index = cfg.input_sigs.index)                               # the desired order of SBS mutation types
     muts = counts.sum()                                                                 # number of mutations for each sample
+    print('read mutational catalogs from {} samples'.format(muts.size))
+    print('number of mutations varies from {} to {} (median is {:.0f})'.format(muts.min(), muts.max(), muts.median()))
     contribs = pd.read_csv(catalog_GT, sep = None, index_col = 0, engine = 'python')    # load the ground truth
     for sig in cfg.input_sigs.columns:
         if sig not in contribs.columns: contribs[sig] = 0
@@ -376,6 +370,14 @@ def fit_external(input_catalog, catalog_GT, code_name, reference_signatures = No
     true_res = (contribs.T * muts).T                                                    # true absolute signature contributions
     save_catalogs(counts = counts)                                                      # save the catalogs for various fitting tools
     info_label = '{}\t{}'.format(cfg.tool, code_name)                                   # ID string for this run
+    print('\n{}: starting the analysis of {} with the ground truth from {}'.format(cfg.tool, input_catalog, catalog_GT))
+    if reference_signatures == None:
+        print('all COSMICv3 signatures are used as a reference')
+        which_setup = 'X'   # tool scripts starting with X use all COSMICv3 signatures as a reference
+    else:
+        print('a specified list of {} reference signatures is used as a reference'.format(len(reference_signatures)))
+        which_setup = 'Y'   # tool scripts starting with Y use selected COSMICv3 signatures as a reference
+        prepare_relevant_COSMIC(found_sigs = reference_signatures)
     # run the fitting tool defined in variable tool in MS_config.py
     timeout_run(info_label, ttt, xxx, yyy, which_setup = which_setup)
     # evaluate the estimated signature weights

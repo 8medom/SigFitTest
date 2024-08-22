@@ -124,9 +124,10 @@ def eval_results(info_label, true_res, muts, df, extra_col, recommended = False)
     if true_res.ndim == 1:                      # possible legacy issue: true_res is a vector (i.e., all samples have the same composition)
         print('true_res should be a DataFrame specifying the true signature weight for each sample, not a vector')
         sys.exit(1)
-    if info_label.count('\t') == 1:
-        code_name, which = info_label.split('\t')[1], 'N/A'
-    else: code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
+    if info_label.count('\t') == 1:             # when fitting external data
+        code_name, line_start = info_label.split('\t')[1], info_label.split('\t')[1]
+    else:                                       # for other cases, there is useful info (e.g., cancer type) in info_label.split('\t')[2]
+        code_name, line_start = info_label.split('\t')[1], info_label.split('\t')[2]
     if recommended:
         output_file = check_open('../results-{}-{}-{}_recommended.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
     else:
@@ -204,8 +205,8 @@ def eval_results(info_label, true_res, muts, df, extra_col, recommended = False)
             else: pearson_value = np.nan
             corr_out = corr_out + '\t{:.4f}'.format(pearson_value)
     mean_num_muts = '{:.0f}'.format(muts.mean())
-    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(which, df.shape[1], mean_num_muts, TAE, TAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(S_vals), np.std(S_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals), pearson, corr_out)
-    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], mean_num_muts, TAE, MAE_active, n_eff, weight_tot, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(S_vals), np.mean(F_vals), np.mean(MCC_vals), pearson)
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(line_start, df.shape[1], mean_num_muts, TAE, TAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(S_vals), np.std(S_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals), pearson, corr_out)
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(line_start, df.shape[1], mean_num_muts, TAE, MAE_active, n_eff, weight_tot, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(S_vals), np.mean(F_vals), np.mean(MCC_vals), pearson)
     if extra_col == None:
         if recommended: print(short_string + '(recommended settings)')
         else: print(short_string)
