@@ -6,8 +6,8 @@ import pandas as pd
 
 
 X = pd.read_csv('data/data_for_MutationalPatterns.dat', index_col = 0, sep = '\t')
-catalog = musical.load_catalog('COSMIC_v3_SBS_WGS')
-W = catalog.W
-#H, model = musical.refit.refit(X, W, method='thresh_naive', thresh=0)                   # Naive NNLS
-H, model = musical.refit.refit(X, W, method='likelihood_bidirectional', thresh=0.001)   # Likelihood-based sparse NNLS
+W = pd.read_csv('../input/COSMIC_v3_SBS_GRCh38.txt', sep = '\t', index_col = 0)
+MP_index = pd.read_csv('../input/mut_matrix_order_MutationalPatterns.dat', header = None).squeeze()
+W = W.reindex(MP_index)
+H, model = musical.refit.refit(X, W, method = 'likelihood_bidirectional', thresh = 0.001)   # Likelihood-based sparse NNLS
 H.to_csv('signature_results/MuSiCal-contribution.dat')
