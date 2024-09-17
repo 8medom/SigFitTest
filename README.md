@@ -2,6 +2,10 @@
 SigFitTest is a Python package to create realistic synthetic mutational catalogs and to evaluate tools for fitting mutational signatures.
 
 
+## Requirements
+To run SigFitTest, you need a standard computer and a working Python installation with the following packages: numpy, scipy, pandas (standard libraries for scientific computing), os (operating system utilities), time, subprocess, threading, shlex (to execute external scripts), and lzma (for compression). To use a fitting tool, the tool needs to be installed first following the instructions that come with that tool. For tools written in R, a working R installation is also necessary. Depending on the chosen tool, the generation and analysis of a cohort with 100 samples can take from a few seconds to more than an hour (slowest methods: mmsig, signature.tools.lib).
+
+
 ## How to use this package
 This package is written in Python. The code snippets for running individual fitting tools are written in R and Python.
 
@@ -11,9 +15,9 @@ There are four directories:
 * `cosmic tissue data`: signature activity (using the COSMICv3 catalog) in the tissue data provided by the COSMIC website,
 * `real mutational catalogs`: SBS96 mutational catalogs of four samples from the PCAWG project and the average signature weights estimated for them by sigLASSO, SigProfilerAssignment, and MuSiCal.
 
-To run the package, you need to: (1) download and unpack it, (2) go to the directory `code`, (3) run `main.py`.
+To run the package, you need to: (1) download and unpack it (or clone it: `git clone https://github.com/8medom/SigFitTest`), (2) go to the directory `code`, (3) run `main.py`.
 
-In `main.py`, there are five main functions that you can use (comment or uncomment the corresponding lines at the end of this script according to which functions you want to run):
+In `main.py`, there are seven main functions that you can use (comment or uncomment the corresponding lines in this script according to which functions you want to run):
 * `generate_synthetic_catalogs(...)`: Generates mutational catalogs based on single base substitutions (SBS) where the mutations are classified in 96 different contexts. Signature weights in the synthetic data are obtained from the real tissue results in the directory `cosmic tissue data`. These synthetic catalogs can be later used for your evaluation of signature fitting (or signature extraction). The output data (synthetic catalogs and true signature weights) are stored in the directory `generated_data`.
 * `fit_with_cosmic3_synthetic_simple(...)`: Generates simple mutational catalogs with pre-defined signature contributions (same for every sample), uses them as input for a signature fitting tool, and evaluates the results produced by this tool. All COSMICv3 signatures are used as a reference for fitting.
 * `fit_with_cosmic3_synthetic(...)`: Generates realistic mutational catalogs with signature activities driven by empirical results from various cancer types, uses them as input for a signature fitting tool and evaluates the results produced by this tool. All COSMICv3 signatures are used as a reference for fitting. Sample output of this function for two tools (SigsPack and SigProfilerAssignment) for two cancer types (Head-SCC and ColoRect-AdenoCA) for two cohorts and three different mutation counts (100, 2000, 50000) is included in this repository (files reference_results-WGS-SET3-MutationalPatterns.dat, reference_results-WGS-SET3-SPA.dat, and reference_results-WGS-SET3-SigsPack.dat). When parameter `out_of_reference_weights` is provided, empirical signature weights are scaled down appropriately and the remaining mutations are driven by out-of-reference signatures (12 signatures from COSMICv3.3.1 that are absent in COSMICv3 that are used for fitting).
@@ -24,7 +28,7 @@ In `main.py`, there are five main functions that you can use (comment or uncomme
 
 
 ### Practical points
-* To run a fitting tool, the tool needs to be installed first following the instructions that come with that tool.
+* To use a fitting tool, the tool needs to be installed first following the instructions that come with that tool.
 * To find the cancer types for which empirical signature activities are available, see the directory `cosmic tissue data`.
 * Several important variables are set in the file `MS_config.py` in the directory `code`:
   * `tool` (tool that will be run and evaluated),
