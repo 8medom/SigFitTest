@@ -378,6 +378,7 @@ def fit_external(input_catalog, catalog_GT, code_name, reference_signatures = No
         print('a specified list of {} reference signatures is used as a reference'.format(len(reference_signatures)))
         which_setup = 'Y'   # tool scripts starting with Y use selected COSMICv3 signatures as a reference
         prepare_relevant_COSMIC(found_sigs = reference_signatures)
+    print('external_id\t{}'.format(cfg.header_line))
     # run the fitting tool defined in variable tool in MS_config.py
     timeout_run(info_label, ttt, xxx, yyy, which_setup = which_setup)
     # evaluate the estimated signature weights
