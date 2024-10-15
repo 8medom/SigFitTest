@@ -2,6 +2,7 @@
 
 
 from MS_functions import *
+from MS_run_and_evaluate import *
 
 
 """
@@ -88,3 +89,7 @@ fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code
 # # sample calls:
 # fit_external(input_catalog = '../sample_data.dat', catalog_GT = '../sample_true_weights.dat', code_name = 'EXT1')
 # fit_external(input_catalog = '../sample_data.dat', catalog_GT = '../sample_true_weights.dat', code_name = 'EXT2', reference_signatures = ['SBS1', 'SBS2', 'SBS5', 'SBS13', 'SBS16', 'SBS18'])
+
+
+# # analyze real samples and evaluate the differences between results obtained by different tools
+# differences_real_samples()

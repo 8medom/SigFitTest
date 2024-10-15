@@ -2,7 +2,7 @@ import MS_config as cfg
 from MS_create_synthetic import *
 from MS_run_and_evaluate import *
 from os.path import isfile, isdir                       # OS-level utilities
-from os import mkdir                                    # OS-level utilities
+from os import mkdir, system                            # OS-level utilities
 import shutil                                           # recursive directory removal
 import sys                                              # emergency stop
 from time import sleep                                  # to be able to pause when needed
@@ -389,3 +389,49 @@ def fit_external(input_catalog, catalog_GT, code_name, reference_signatures = No
     ttt.close()
     xxx.close()
     yyy.close()
+
+
+# fitting real mutational catalogs using all COSMICv3 signatures as a reference
+# three tools (SigProfilerAssignment, MuSiCal, and sigLASSO) that performed well on synthetic mutational catalogs are used
+# differences (total absolute difference) between relative signature activities estimated by these tools are reported
+def differences_real_samples():
+    # run the analysis with three chosen tools
+    for tool in ['SPA', 'MuSiCal', 'sigLASSO']:
+        if tool in cfg.Python_tools:
+            print('+++ started the analysis with {} (script PCAWG-{}.py)'.format(tool, tool))
+            system('python3 PCAWG-{}.py'.format(tool))
+        else:
+            print('started the analysis with {} (script PCAWG-{}.R)'.format(tool, tool))
+            system('Rscript PCAWG-{}.R'.format(tool))
+        print('--- finished the analysis with {}\n\n'.format(tool))
+    # load and pre-process the results
+    catalogs = pd.read_csv('../real mutational catalogs/real_samples_WGS_PCAWG-146_input_profiles.dat', sep = '\t', index_col = 'Type', comment = '#')
+    muts = catalogs.sum()
+    res1 = pd.read_csv('../WGS_PCAWG-146_samples-SPA-contribution.dat', index_col = 0)
+    res1[res1 < 10] = 0
+    res1 /= muts
+    res2 = pd.read_csv('../WGS_PCAWG-146_samples-MuSiCal-contribution.dat', index_col = 0)
+    res2[res2 < 10] = 0
+    res2 /= muts
+    res3 = pd.read_csv('../WGS_PCAWG-146_samples-sigLASSO-contribution.dat', index_col = 0)
+    new_col_names = []
+    for col in res3.columns:
+        new_col_names.append(col.replace('..', '::').replace('.', '-'))
+    res3.columns = new_col_names
+    res3 *= muts
+    res3[res3 < 10] = 0
+    res3 /= muts
+    # compute the total absolute difference between the three pairs of results
+    rows = []
+    for sample in muts.index:
+        cancer_type = sample.split(':')[0]
+        if cancer_type not in ['Skin-Melanoma', 'Stomach-AdenoCA', 'Lung-SCC']: cancer_type = 'Other'
+        diff1 = (res1[sample] - res2[sample]).abs().sum()
+        diff2 = (res1[sample] - res3[sample]).abs().sum()
+        diff3 = (res2[sample] - res3[sample]).abs().sum()
+        rows.append({'Sample': sample, 'Cancer type': cancer_type, 'Tot difference': (diff1 + diff2 + diff3) / 3})
+    tmp = pd.DataFrame(rows)
+    print('Number of samples of each cancer type:')
+    print(tmp.groupby('Cancer type')['Tot difference'].count())
+    print('\n\nTotal difference between the results stratified by cancer type:')
+    print(tmp.groupby('Cancer type')['Tot difference'].median())
