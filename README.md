@@ -69,7 +69,7 @@ Output files `results-*.dat` present the summary results for each synthetic coho
 
 
 ## Citation
-M. Medo, Charlotte Ng, M. Medová, A comprehensive comparison of tools for fitting mutational signatures, Nature Communications (in press).
+Matúš Medo, Charlotte K. Y. Ng, Michaela Medová, A comprehensive comparison of tools for fitting mutational signatures, [Nature Communications 15, 9467 (2024)](https://www.nature.com/articles/s41467-024-53711-6).
 
 
 ## Contact Information
