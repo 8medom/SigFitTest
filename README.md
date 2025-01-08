@@ -1,5 +1,5 @@
 # SigFitTest
-SigFitTest is a Python package to create realistic synthetic mutational catalogs and to evaluate tools for fitting mutational signatures.
+SigFitTest is a Python package to create realistic synthetic mutational catalogs and to evaluate tools for fitting mutational signatures. This page includes continuously [updated evaluation of fitting tools](#updated-results).
 
 
 ## Requirements
@@ -66,6 +66,16 @@ Output files `results-*.dat` present the summary results for each synthetic coho
 * `MCC`: Matthews correlation coefficient, a correlation between the true and estimated signature activities,
 * `Pearson`: Pearson correlation between the true and estimated signature weights, including only the signatures for which either true or estimated weight is positive, averaged over all samples,
 * `r_S*`: Pearson correlation between the true and estimated signature weights for all samples and one chosen signature (the list of five chosen signatures for each cancer type is in `MS_config.py` in the dictionary `top_sigs`).
+
+
+## Updated results
+You can find here updated results where more fitting tools are added over time.
+
+![alt text](/figures/update_results-set6.png)
+Results on synthetic mutational catalogs corresponding to eight different cancer types (update of Figure 2 in the manuscript).
+
+![alt text](/figures/update_results-set78.png)
+Results on synthetic mutational catalogs where two signatures absent from COSMICv3 have both weights 10\% (update of Figure 4e in the manuscript).
 
 
 ## Citation
