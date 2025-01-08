@@ -71,11 +71,11 @@ Output files `results-*.dat` present the summary results for each synthetic coho
 ## Updated results
 You can find here updated results where more fitting tools are added over time.
 
+Figure 1: Results on synthetic mutational catalogs corresponding to eight different cancer types (update of Figure 2 in the manuscript).
 ![alt text](/figures/update_results-set6.png)
-Results on synthetic mutational catalogs corresponding to eight different cancer types (update of Figure 2 in the manuscript).
 
+Figure 2: Results on synthetic mutational catalogs where two signatures absent from COSMICv3 have both weights 10\% (update of Figure 4e in the manuscript).
 ![alt text](/figures/update_results-set78.png)
-Results on synthetic mutational catalogs where two signatures absent from COSMICv3 have both weights 10\% (update of Figure 4e in the manuscript).
 
 
 ## Citation
