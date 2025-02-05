@@ -200,6 +200,8 @@ def eval_results(info_label, true_res, muts, df, extra_col, recommended = False)
     corr_out = ''
     if extra_col != None and extra_col in cfg.top_sigs.keys():      # for empirical weights, cohort-wide correlations for top signatures
         for sig in cfg.top_sigs[extra_col]:
+            if sig not in true_res.index: true_res.loc[sig] = 0     # top signature missing in the true result (can happen rarely)
+            if sig not in df.index: df.loc[sig] = 0                 # top signature missing in the results
             if true_res.loc[sig].std() > 0 and df.loc[sig].std() > 0:
                 pearson_value = pearsonr(true_res.loc[sig], df.loc[sig])[0]
             else: pearson_value = np.nan
