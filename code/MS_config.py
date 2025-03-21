@@ -1,7 +1,7 @@
 import pandas as pd                     # for data structures
 
 
-tool = 'MutationalPatterns'             # signature fitting tool to use; tool scripts named X-tool_name.R or X-tool_name.py
+tool = 'SPA'             # signature fitting tool to use; tool scripts named X-tool_name.R or X-tool_name.py
 WGS_or_WES = 'WGS'                      # whether to use WGS or WES signatures
 N_samples = 100                         # number of synthetic samples are in each cohort
 num_realizations = 2                    # number of independent cohorts to generate

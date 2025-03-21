@@ -46,7 +46,7 @@ def generate_synthetic_catalogs(cancer_types, out_of_reference_weights = []):
                         contribs *= (1 - tot_out_of_reference)
                         for n, weight in enumerate(out_of_reference_weights):
                             contribs[new_active[n]] = weight
-                    info_label = '{}_{}_{}'.format(cancer_type, rep, num_muts)
+                    info_label = '{}-w_{}-{}'.format(cancer_type, rep, num_muts)
                     # generate and save synthetic mutational catalogs
                     muts = pd.Series(num_muts, index = contribs.index)
                     counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)

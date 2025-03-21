@@ -6,13 +6,13 @@ from MS_run_and_evaluate import *
 
 
 """
-This is the main function of the SigFitTest package.
+This is the main file of the SigFitTest package.
 It contains descriptions of the main functions and examples for how they can be used.
 Uncomment a line of your choice to reproduce results shown in the article
 ``A comprehensive comparison of tools for fitting mutational signatures'' or
 write your own function calls.
 
-matus.medo@unifr.ch, 2024
+matus.medo@unifr.ch, 2025
 """
 
 

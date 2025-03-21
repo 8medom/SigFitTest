@@ -47,11 +47,11 @@ def prepare_data_from_real_data_by_subsampling(rng, muts, real_data):
 # save the created mutational catalogs in various formats that can be used by the evaluated fitting tools
 def save_catalogs(counts, info_label = None):
     if info_label == None: counts.to_csv('data/data_for_deconstructSigs.dat', sep = '\t')
-    else: counts.to_csv('data/data_for_deconstructSigs_{}.dat'.format(info_label), sep = '\t')
+    else: counts.to_csv('data/data_for_deconstructSigs-{}.dat'.format(info_label), sep = '\t')
     counts = counts.reindex(index = cfg.index_MutationalPatterns)
     counts.index.name = 'Type'
     if info_label == None: counts.to_csv('data/data_for_MutationalPatterns.dat', sep = '\t')
-    else: counts.to_csv('data/data_for_MutationalPatterns_{}.dat'.format(info_label), sep = '\t')
+    else: counts.to_csv('data/data_for_MutationalPatterns-{}.dat'.format(info_label), sep = '\t')
     counts3 = counts.copy()
     new_index = []
     for ix in counts3.index:
@@ -59,7 +59,7 @@ def save_catalogs(counts, info_label = None):
     counts3.index = new_index
     counts3 = counts3.reindex(index = cfg.index_YAPSA)
     if info_label == None: counts3.to_csv('data/data_for_YAPSA.dat', sep = '\t')
-    else: counts3.to_csv('data/data_for_YAPSA_{}.dat'.format(info_label), sep = '\t')
+    else: counts3.to_csv('data/data_for_YAPSA-{}.dat'.format(info_label), sep = '\t')
     counts2 = counts.copy()
     mut_type, trinuc = [], []
     for ix in counts2.index:
@@ -71,7 +71,7 @@ def save_catalogs(counts, info_label = None):
     new_cols = [cols[-2]] + [cols[-1]] + cols[:-2]
     counts2 = counts2[new_cols]
     if info_label == None: counts2.to_csv('data/data_for_spss.dat', sep = ',', index = False)
-    else: counts2.to_csv('data/data_for_spss_{}.dat'.format(info_label), sep = ',', index = False)
+    else: counts2.to_csv('data/data_for_spss-{}.dat'.format(info_label), sep = ',', index = False)
     if cfg.tool == 'sigfit':    # data files for sigfit are large -> save them only when really needed
         ox = open('data/data_for_sigfit.dat', 'w')
         ox.write('Sample\tRef\tAlt\tTrinuc\n')
@@ -89,8 +89,8 @@ def save_catalogs(counts, info_label = None):
     counts.index = new_index
     counts = counts.reindex(index = cfg.index_sigLASSO)
     counts.index.name = 'Type'
-    if info_label == None: counts.to_csv('data/data_for_sigLASSO_spectrum.dat', sep = '\t')
-    else: counts.to_csv('data/data_for_sigLASSO_spectrum_{}.dat'.format(info_label), sep = '\t')
+    if info_label == None: counts.to_csv('data/data_for_sigLASSO.dat', sep = '\t')
+    else: counts.to_csv('data/data_for_sigLASSO-{}.dat'.format(info_label), sep = '\t')
 
 
 # generate empirically-driven signature contributions given by empirical_sub

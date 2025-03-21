@@ -120,7 +120,7 @@ def load_results(info_label, muts, extra_col, fname):
 
 
 # compute the evaluation metrics for df when true weights are true_res
-def eval_results(info_label, true_res, muts, df, extra_col, recommended = False):
+def eval_results(info_label, true_res, muts, df, extra_col, recommended = False, ref_sigs = 'COSMIC_v3'):
     if true_res.ndim == 1:                      # possible legacy issue: true_res is a vector (i.e., all samples have the same composition)
         print('true_res should be a DataFrame specifying the true signature weight for each sample, not a vector')
         sys.exit(1)
@@ -132,6 +132,16 @@ def eval_results(info_label, true_res, muts, df, extra_col, recommended = False)
         output_file = check_open('../results-{}-{}-{}_recommended.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
     else:
         output_file = check_open('../results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
+    try:                                        # reference signatures used for fitting
+        tmp = pd.read_csv('../input/{}_SBS_GRCh38.txt'.format(ref_sigs), sep = '\t', index_col = 'Type')
+    except:
+        print('cannot find file {} with the reference signatures used for fitting'.format('../input/{}_SBS_GRCh38.txt'.format(ref_sigs)))
+        sys.exit(1)
+    for sig in tmp.columns:
+        if sig not in true_res.index:           # make sure that all reference signatures are included in the true result data frame
+            true_res.loc[sig] = 0
+        if sig not in df.index:                 # make sure that all reference signatures are included in the results data frame
+            df.loc[sig] = 0
     for ix in df.index:                         # to make sure that signatures from the results are not missing in the true result
         if ix not in true_res.index:
             true_res.loc[ix] = 0
@@ -175,10 +185,12 @@ def eval_results(info_label, true_res, muts, df, extra_col, recommended = False)
         if num_TN + num_FP > 0:                                     # specificity (true negatives to all negatives)
             Ssample = num_TN / (num_TN + num_FP)
         else: Ssample = 0
-        if Psample + Rsample > 0:                                   # F1 score & Matthews correlation coefficient
+        if Psample + Rsample > 0:                                   # F1 score
             Fsample = 2 * Psample * Rsample / (Psample + Rsample)
+        else: Fsample = 0
+        if Psample + Rsample > 0 and num_TN + num_FP > 0 and num_TN + num_FN > 0:   # Matthews correlation coefficient
             MCCsample = (num_TP * num_TN - num_FP * num_FN) / np.sqrt((num_TP + num_FP) * (num_TP + num_FN) * (num_TN + num_FP) * (num_TN + num_FN))
-        else: Fsample, MCCsample = 0, 0
+        else: MCCsample = 0
         P_vals.append(Psample)
         R_vals.append(Rsample)
         S_vals.append(Ssample)
