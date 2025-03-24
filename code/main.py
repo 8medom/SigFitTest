@@ -93,3 +93,6 @@ fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code
 
 # # analyze real samples and evaluate the differences between results obtained by different tools
 # differences_real_samples()
+
+
+evaluate_fit_quality()
