@@ -7,7 +7,9 @@ from subprocess import Popen                            # to execute external sc
 from threading import Timer                             # to time-out a process after a pre-defined time (cfg.timeout_time)
 import shlex                                            # to split a string using shell-like syntax
 import lzma                                             # to compress result files for future analysis
-from scipy.stats import ranksums, pearsonr              # for evaluation of results
+from tqdm import tqdm                                   # for progress bar
+from scipy.stats import ranksums, pearsonr              # for the evaluation of results
+from scipy.spatial.distance import cosine               # for sample reconstruction evaluation
 import MS_config as cfg                                 # all global stuff
 
 
@@ -265,7 +267,7 @@ def evaluate_main(info_label, true_res, muts, extra_col = None, compress_result_
 
 # evaluate the signature weights estimated for subsampled real mutational catalogs
 def evaluate_real_catalogs(info_label, true_res, muts, aaa_file, compress_result_file = True, extra_col = 'real_data'):
-    code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
+    code_name, weights = info_label.split('\t')[1], info_label.split('\t')[2]
     df = load_results(info_label, muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
     for sample in df.columns:                   # normalize the loaded results to weighted signature contributions
         df[sample] /= muts[sample]
@@ -315,14 +317,14 @@ def evaluate_real_catalogs(info_label, true_res, muts, aaa_file, compress_result
         R_vals.append(Rsample)
         F_vals.append(Fsample)
         MCC_vals.append(MCCsample)
-        aaa_file.write('{}\t{}\t{}\t{:.4f}\t{:.4f}\t{}\t{:.4f}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(muts[sample], which, sample, err[sample], df[sample].sum(), num_FP, wtot_FP, num_FN, wtot_FN, Psample, Rsample, Fsample, MCCsample))
+        aaa_file.write('{}\t{}\t{}\t{:.4f}\t{:.4f}\t{}\t{:.4f}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(muts[sample], weights, sample, err[sample], df[sample].sum(), num_FP, wtot_FP, num_FN, wtot_FN, Psample, Rsample, Fsample, MCCsample))
         num_FP_values.append(num_FP)
         wtot_FP_values.append(wtot_FP)
         num_FN_values.append(num_FN)
         wtot_FN_values.append(wtot_FN)
     mean_num_muts = '{:.0f}'.format(muts.mean())
-    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(which, df.shape[1], mean_num_muts, TAE, TAE_std, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals))
-    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(which, df.shape[1], mean_num_muts, TAE, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.mean(R_vals), np.mean(F_vals), np.mean(MCC_vals))
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(weights, df.shape[1], mean_num_muts, TAE, TAE_std, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals))
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(weights, df.shape[1], mean_num_muts, TAE, df.sum().mean(), np.mean(num_FP_values), np.mean(wtot_FP_values), np.mean(num_FN_values), np.mean(wtot_FN_values), np.mean(P_vals), np.mean(R_vals), np.mean(F_vals), np.mean(MCC_vals))
     if recommended: print(short_string + ' (recommended settings)')
     else: print(short_string)
     output_file.write(full_string)
@@ -347,7 +349,7 @@ def compare_weights(vals, info_label, extra_col, which_sig, difference_magnitude
 
 # compare the weights of signature which_sig between odd- and even-numbered samples
 def compare_groups(info_label, which_sig, muts, difference_magnitude, true_res = None, extra_col = None):
-    code_name, which = info_label.split('\t')[1], info_label.split('\t')[2]
+    code_name, weights = info_label.split('\t')[1], info_label.split('\t')[2]
     oname = '../comparison_results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool)
     if not isfile(oname):                           # open the output file
         output_file = open(oname, 'w')
@@ -365,3 +367,41 @@ def compare_groups(info_label, which_sig, muts, difference_magnitude, true_res =
             rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-'), mean_num_muts))
             system('lzma signature_results/contribution-{}-{}-{}.dat'.format(cfg.WGS_or_WES, info_label.replace('\t', '-'), mean_num_muts))
         output_file.close()
+
+
+# assess the reconstruction of mutation profiles by various means (L1, L2, cosine, bootstrap,...)
+# ref_sigs is the reference catalog that was used by the fitting tool to estimate signature activities
+def evaluate_fits(info_label, input_profiles, extra_col = None, ref_sigs = 'COSMIC_v3'):
+    ref_catalog = pd.read_csv('../input/{}_SBS_GRCh38.txt'.format(ref_sigs), sep = '\t', index_col = 0)
+    code_name, weights = info_label.split('\t')[1], info_label.split('\t')[2]
+    input_muts = input_profiles.sum()                                   # numbers of mutations in the samples
+    try:
+        fname = 'signature_results/{}-contribution.dat'.format(cfg.tool)
+        estimated_sigs = pd.read_csv(fname, sep = ',', index_col = 0)
+    except:
+        if extra_col == None: out_string = 'fit quality evaluation: no results for {}, {}\n'.format(extra_col, info_label)
+        else: out_string = 'fit quality evaluation: no results for {} & {}\n'.format(extra_col, info_label)
+        print(out_string)
+        return None
+    if cfg.tool not in cfg.tools_that_produce_relative_contributions:   # switch from relative to absolute signature contributions
+        estimated_sigs = estimated_sigs / input_muts
+    worst_normalization = (estimated_sigs.sum() - 1).abs().max()
+    if worst_normalization > cfg.EPSILON:
+        print('there is a sample whose sum of estimated signature weights differs from 1 by {:.2e}'.format(worst_normalization))
+        print('warning: current evaluation of signature fits is designed for estimated signature weights that sum to 1')
+    oname = '../fit_quality_results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool)
+    if not isfile(oname):                                               # open the output file
+        output_file = open(oname, 'w')
+        if extra_col == None: output_file.write('cohort_size\tweights\tsample\t#muts\t\n')
+        else: output_file.write('cancer_type\tcohort_size\tweights\tsample\t#muts\t\n')
+    else: output_file = open(oname, 'a')
+    # compute reconstruction metrics
+    input_profiles_norm = input_profiles / input_muts                   # normalized input mutational catalogs
+    for sample in tqdm(estimated_sigs.columns):                         # loop over samples
+        profile_reconstructed = ref_catalog.dot(estimated_sigs[sample])
+        cos_val = 1 - cosine(input_profiles_norm[sample], profile_reconstructed)
+        L1_val = (input_profiles_norm[sample] - profile_reconstructed).abs().sum()
+        L2_val = np.sqrt(np.power(input_profiles_norm[sample] - profile_reconstructed, 2).sum())
+        if extra_col == None: output_file.write('{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(estimated_sigs.shape[1], weights, sample, input_muts[sample], cos_val, L1_val, L2_val))
+        else: output_file.write('{}\t{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(extra_col, estimated_sigs.shape[1], weights, sample, input_muts[sample], cos_val, L1_val, L2_val))
+    output_file.close()

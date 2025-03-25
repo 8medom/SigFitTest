@@ -42,8 +42,9 @@ matus.medo@unifr.ch, 2025
 # # estimated signature weights ('signature_results-*.zip), evaluation results (results-*.dat), and the running
 # # time (running_times-*.dat); these files are saved in the main directory, one level up from main.py
 # # sample calls:
-fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'SET3')
+# fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'SET3')
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = [0.1, 0.1], code_name = 'SET6')
+fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'SET3', evaluate_fit_quality = True)
 
 
 # # generate mutational catalogs for the provided cancer types, load the previously computed results of
@@ -93,6 +94,3 @@ fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code
 
 # # analyze real samples and evaluate the differences between results obtained by different tools
 # differences_real_samples()
-
-
-evaluate_fit_quality()
