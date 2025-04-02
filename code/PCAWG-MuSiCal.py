@@ -9,7 +9,7 @@ import pandas as pd
 X = pd.read_csv('../real mutational catalogs/real_samples_WGS_PCAWG-146_input_profiles.dat', sep = '\t', index_col = 'Type', comment = '#')
 MP_index = pd.read_csv('../input/mut_matrix_order_MutationalPatterns.dat', header = None).squeeze()
 X = X.reindex(MP_index)
-W = pd.read_csv('../input/COSMIC_v3_SBS_GRCh38.txt', sep = '\t', index_col = 0)
+W = pd.read_csv('../input/COSMIC_v3_SBS_GRCh37.txt', sep = '\t', index_col = 0)
 W = W.reindex(MP_index)
 
 

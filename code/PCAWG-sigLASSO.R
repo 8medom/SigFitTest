@@ -3,7 +3,7 @@ library(dplyr)
 
 
 # prepare input data
-cosmic3 <- read.table("../input/COSMIC_v3_SBS_GRCh38_for_sigLASSO.txt", row.names = 1, header = TRUE, check.names = FALSE, sep = ",")
+cosmic3 <- read.table("../input/COSMIC_v3_SBS_GRCh37_for_sigLASSO.txt", row.names = 1, header = TRUE, check.names = FALSE, sep = ",")
 spectrum <- data.matrix(read.table("../real mutational catalogs/real_samples_WGS_PCAWG-146_input_profiles.dat", row.names = 1, header = TRUE, check.names = FALSE))
 rownames(spectrum) <- sub("\\]", "", sub("\\[", "", rownames(spectrum)))
 spectrum <- spectrum[rownames(cosmic3), ]
