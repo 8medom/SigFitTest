@@ -8,7 +8,7 @@ from threading import Timer                             # to time-out a process 
 import shlex                                            # to split a string using shell-like syntax
 import lzma                                             # to compress result files for future analysis
 from tqdm import tqdm                                   # for progress bar
-from scipy.stats import ranksums, pearsonr              # for the evaluation of results
+from scipy.stats import ranksums, pearsonr, norm        # for the evaluation of results
 from scipy.spatial.distance import cosine               # for sample reconstruction evaluation
 import MS_config as cfg                                 # all global stuff
 
@@ -404,4 +404,71 @@ def evaluate_fits(info_label, input_profiles, extra_col = None, ref_sigs = 'COSM
         L2_val = np.sqrt(np.power(input_profiles_norm[sample] - profile_reconstructed, 2).sum())
         if extra_col == None: output_file.write('{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(estimated_sigs.shape[1], weights, sample, input_muts[sample], cos_val, L1_val, L2_val))
         else: output_file.write('{}\t{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(extra_col, estimated_sigs.shape[1], weights, sample, input_muts[sample], cos_val, L1_val, L2_val))
+    output_file.close()
+
+
+def assess_fit_quality(info_label, input_catalog, sig_estimates, ref_sigs = 'COSMIC_v3', ref_genome = 'GRCh38', boot_realizations = 1000, extra_col = None, sample_info = None):
+    # print('input mutational catalogs: {}'.format(input_catalog))
+    # print('      signature estimates: {}'.format(sig_estimates))
+    if 'COSMICv34' in sig_estimates: ref_sigs = 'COSMIC_v3.4'
+    rng2 = np.random.default_rng(0)                                     # private RNG for this function only
+    ref_catalog = pd.read_csv('../input/{}_SBS_{}.txt'.format(ref_sigs, ref_genome), sep = '\t', index_col = 0)
+    if isinstance(input_catalog, str):                                  # path to the input catalog has been passed
+        input_profiles = pd.read_csv(input_catalog, sep = '\t', index_col = 0)
+    elif isinstance(input_catalog, pd.DataFrame):                       # DataFrame has been passed
+        input_profiles = input_catalog
+    else:
+        print('do not know what to do with input_catalog {}'.format(type(input_catalog)))
+        sys.exit(1)
+    input_muts = input_profiles.sum()                                   # numbers of mutations in the samples
+    try:
+        estimated_sigs = pd.read_csv(sig_estimates, sep = ',', index_col = 0)
+    except:
+        print('cannot read signature estimates from {}'.format(sig_estimates))
+        return None
+    sample_sums = estimated_sigs.sum(axis = 0)
+    if sample_sums.max() > 2:
+        print('provided signature estimates have been inferred to be absolute')
+        estimated_sigs = estimated_sigs / input_muts                    # switch from relative to absolute signature contributions
+    else:
+        print('provided signature estimates have been inferred to be relative')
+    # file_name = sig_estimates.split('/')[-1]
+    # if file_name.endswith('-contribution.dat'): file_name = file_name[:-17]
+    # oname = 'signature_results/fit_quality_results-{}.dat'.format(file_name)
+    # output_file = open(oname, 'w')
+    simplified_label = info_label.replace('\t', '-').replace('(', '_').replace(')', '')
+    if extra_col != None: simplified_label = extra_col + '-' + simplified_label
+    output_file = open('signature_results/fit_quality_results-{}-{}.dat'.format(cfg.WGS_or_WES, simplified_label), 'w')
+    worst_normalization = (estimated_sigs.sum() - 1).abs().max()
+    if worst_normalization > cfg.EPSILON:
+        warning = 'there is a sample whose sum of estimated signature weights differs from 1 by {:.2e}'.format(worst_normalization)
+        print(warning)
+        print('warning: current evaluation of signature fits is designed for estimated signature weights that sum to 1')
+        output_file.write('# {}\n'.format(warning))
+    if sample_info != None: extra = '\tsample_info'
+    else: extra = ''
+    output_file.write('sample\tmuts\tw_T\tcos\tL1\tL2\tE(L2_B)\tsig(L2_B)\tz-score\tp-value{}\n'.format(extra))
+    input_profiles_norm = input_profiles / input_muts                   # normalized input mutational catalogs
+    for i, sample in enumerate(tqdm(estimated_sigs.columns)):           # loop over samples
+        profile_reconstructed = ref_catalog.dot(estimated_sigs[sample])
+        profile_reconstructed_norm = profile_reconstructed / profile_reconstructed.sum()
+        cos_val = 1 - cosine(input_profiles_norm[sample], profile_reconstructed)
+        L1_val = (input_profiles_norm[sample] - profile_reconstructed).abs().sum()
+        L2_val = np.sqrt(np.power(input_profiles_norm[sample] - profile_reconstructed, 2).sum())
+        L2_bootstrap = []
+        for boot_rep in range(boot_realizations):
+            counts_bootstrap = np.zeros(96, dtype = int)                                                                # zero counts
+            np.add.at(counts_bootstrap, rng2.choice(96, p = profile_reconstructed_norm, size = input_muts[sample]), 1)  # generate counts
+            profile_bootstrap = counts_bootstrap.astype(float) / input_muts[sample]
+            L2_boot = np.sqrt(np.power(profile_bootstrap - profile_reconstructed, 2).sum())
+            L2_bootstrap.append(L2_boot)
+        L2_boot_mean = np.mean(L2_bootstrap)
+        L2_boot_std = np.std(L2_bootstrap)
+        z_score = (L2_val - L2_boot_mean) / L2_boot_std
+        p_value = 1 - norm.cdf(z_score)
+        #! export to string differently above 0.001 and below (enginnering notation)
+        # p_value = (np.array(L2_bootstrap) > L2_val).sum() / boot_realizations
+        if sample_info != None: extra = '\t{}'.format(sample_info[i])
+        else: extra = ''
+        output_file.write('{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(sample, input_muts[sample], estimated_sigs[sample].sum(), cos_val, L1_val, L2_val, L2_boot_mean, L2_boot_std, z_score, p_value, extra))
     output_file.close()

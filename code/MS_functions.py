@@ -8,18 +8,28 @@ import sys                                              # emergency stop
 from time import sleep                                  # to be able to pause when needed
 
 
-# check if the weights are okay
-def check_provided_weights(weights):
-    if len(weights) > len(cfg.out_sigs):
-        print('cannot introduce {} out-of-reference signatures (only {} signatures are in COSMICv3.3.1 but not in COSMICv3)'.format(len(weights), len(cfg.out_sigs)))
-        sys.exit(1)
-    if sum(weights) > 1 + cfg.EPSILON:
-        print('sum of out-of-reference weights cannot exceed 1 (now {:.2f})'.format(sum(weights)))
-        sys.exit(1)
-    for weight in weights:
-        if weight < 0:
-            print('out-of-reference weights cannot be negative ({})'.format(weight))
+# check if the provided dictoniary with weights of out of reference signatures is okay
+def check_provided_weights(out_of_ref):
+    sum_of_fracs = 0
+    for frac in out_of_ref:
+        if frac < 0:
+            print('fraction of samples with out-of-reference signatures cannot be negative ({})'.format(frac))
             sys.exit(1)
+        sum_of_fracs += frac
+        weights = out_of_ref[frac]
+        if len(weights) > len(cfg.out_sigs):
+            print('cannot introduce {} out-of-reference signatures (only {} signatures are in COSMICv3.3.1 but not in COSMICv3)'.format(len(weights), len(cfg.out_sigs)))
+            sys.exit(1)
+        if sum(weights) > 1 + cfg.EPSILON:
+            print('sum of out-of-reference weights cannot exceed 1 (now {:.4f})'.format(sum(out_of_ref)))
+            sys.exit(1)
+        for weight in weights:
+            if weight < 0:
+                print('out-of-reference weights cannot be negative ({})'.format(weight))
+                sys.exit(1)
+    if sum_of_fracs > 1 + cfg.EPSILON:
+        print('sum of fractions of samples cannot exceed 1 (now {:.4f})'.format(sum_of_fracs))
+        sys.exit(1)
 
 
 # generate and save synthetic mutational catalogs with signature weights driven by COSMIC results on real tissue data
@@ -41,20 +51,19 @@ def generate_synthetic_catalogs(cancer_types, out_of_reference_weights = []):
             for num_muts in cfg.num_muts_list_short:    # gradually increase the number of mutations
                 print('{} mutations...'.format(num_muts), end = ' ', flush = True)
                 contribs = generate_weights_empirical(num_muts, empirical.iloc[who].astype('double').reset_index(drop = True))
-                if contribs is not None:
-                    if tot_out_of_reference > 0:
-                        contribs *= (1 - tot_out_of_reference)
-                        for n, weight in enumerate(out_of_reference_weights):
-                            contribs[new_active[n]] = weight
-                    info_label = '{}-w_{}-{}'.format(cancer_type, rep, num_muts)
-                    # generate and save synthetic mutational catalogs
-                    muts = pd.Series(num_muts, index = contribs.index)
-                    counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
-                    save_catalogs(counts = counts, info_label = info_label)
-                    # keep only the active signatures
-                    tmp = contribs[contribs.columns[(contribs.sum(axis = 0) != 0)]]
-                    # save true signature contributions
-                    tmp.to_csv('data/true_weights-{}.dat'.format(info_label), sep = '\t', float_format = '%.6f')
+                if tot_out_of_reference > 0:
+                    contribs *= (1 - tot_out_of_reference)
+                    for n, weight in enumerate(out_of_reference_weights):
+                        contribs[new_active[n]] = weight
+                info_label = '{}-w_{}-{}'.format(cancer_type, rep, num_muts)
+                # generate and save synthetic mutational catalogs
+                muts = pd.Series(num_muts, index = contribs.index)
+                counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
+                save_catalogs(counts = counts, info_label = info_label)
+                # keep only the active signatures
+                tmp = contribs[contribs.columns[(contribs.sum(axis = 0) != 0)]]
+                # save true signature contributions
+                tmp.to_csv('data/true_weights-{}.dat'.format(info_label), sep = '\t', float_format = '%.6f')
     shutil.move('data', '../generated_data')
     print('\n\ndone, datasets saved in folder generated_data')
 
@@ -96,11 +105,19 @@ def fit_with_cosmic3_synthetic_simple(sig_weights, code_name):
 # out-of-reference signatures are assigned the weights given in out_of_reference_weights (default: no out-of-reference signatures)
 # examples: out_of_reference_weights = [0.2, 0.1] means that one out of reference signature has weight 20% and another has weight 10%
 # out-of-reference signatures are the same for all samples in a cohort
-def fit_with_cosmic3_synthetic(cancer_types, code_name, out_of_reference_weights = [], save_true_weights = False, evaluate_fit_quality = False):
-    tot_out_of_reference = sum(out_of_reference_weights)
-    if tot_out_of_reference > 0: print('=== fitting synthetic mutational catalogs using COSMICv3; out-of-reference signatures have joint weight {:.4f} ==='.format(tot_out_of_reference))
-    else: print('=== fitting synthetic mutational catalogs using COSMICv3 ===')
-    check_provided_weights(out_of_reference_weights)
+def fit_with_cosmic3_synthetic(cancer_types, code_name, out_of_reference_weights = {}, save_true_weights = False, evaluate_fit_quality = False):
+    print('=== fitting synthetic mutational catalogs ===')
+    if out_of_reference_weights:                                # some samples have out of reference signatures
+        print('some samples have out of reference signatures ({})'.format(out_of_reference_weights))
+        check_provided_weights(out_of_reference_weights)
+        out_of_ref = []                                         # list with out-of-ref signature weights for all samples
+        for frac_samples in out_of_reference_weights.keys():
+            num_samples = int(round(frac_samples * cfg.N_samples))    # absolute number of samples
+            for _ in range(num_samples):
+                out_of_ref.append(out_of_reference_weights[frac_samples])
+            while len(out_of_ref) < cfg.N_samples: out_of_ref.append([0])
+    else:
+        out_of_ref = [[0] for _ in range(cfg.N_samples)]
     ttt = open('../running_times-{}-{}.dat'.format(cfg.WGS_or_WES, cfg.tool), 'a')
     xxx = open('../stdout-{}.txt'.format(cfg.tool), 'a')
     yyy = open('../stderr-{}.txt'.format(cfg.tool), 'a')
@@ -116,26 +133,33 @@ def fit_with_cosmic3_synthetic(cancer_types, code_name, out_of_reference_weights
             who = rng.choice(empirical.shape[0], size = cfg.N_samples, replace = True)
             for num_muts in cfg.num_muts_list_short:                # to gradually increase the number of mutations
                 contribs = generate_weights_empirical(num_muts, empirical.iloc[who].astype('double').reset_index(drop = True))
-                if contribs is not None:
-                    info_label = '{}\t{}\tw_{}\t{}'.format(cfg.tool, code_name, rep, num_muts)
+                sample_info = []                                    # info about out of reference signatures for each sample
+                for i, ix in enumerate(contribs.index):             # add out-of-reference signature for each sample (if needed)
+                    out_of_ref_fracs = out_of_ref[i]
+                    tot_out_of_reference = sum(out_of_ref_fracs)
                     if tot_out_of_reference > 0:
-                        contribs *= (1 - tot_out_of_reference)
-                        new_active = rng.choice(cfg.out_sigs, size = len(out_of_reference_weights), replace = False)
-                        for n, weight in enumerate(out_of_reference_weights):
-                            contribs[new_active[n]] = weight
-                    if save_true_weights:                           # save true signature contributions
-                        tmp = contribs[contribs.columns[(contribs.sum(axis = 0) != 0)]]
-                        tmp.to_csv('data/true_weights_{}_{}_w{}_{}.dat'.format(cancer_type, code_name, rep, num_muts), sep = '\t', float_format = '%.6f')
-                    # prepare synthetic mutational catalogs
-                    muts = pd.Series(num_muts, index = contribs.index)
-                    counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
-                    save_catalogs(counts = counts)
-                    true_res = (contribs.T * muts).T                # data frame with true signature contributions
-                    timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type)         # fit using the tool defined in MS_config.py
-                    if evaluate_fit_quality: evaluate_fits(info_label, counts, extra_col = cancer_type)
-                    evaluate_main(info_label, true_res.T, muts, extra_col = cancer_type)
+                        contribs.loc[ix] *= (1 - tot_out_of_reference)
+                        new_active = rng.choice(cfg.out_sigs, size = len(out_of_ref_fracs), replace = False)
+                        for n, weight in enumerate(out_of_ref_fracs):
+                            contribs.loc[ix, new_active[n]] = weight
+                        sample_info.append('_'.join(['{:.0f}{}'.format(100 * out_of_ref_fracs[n], new_active[n]) for n in range(len(out_of_ref_fracs))]))
+                    else: sample_info.append('no_out_of_ref')
+                if save_true_weights:                               # save true signature contributions
+                    tmp = contribs[contribs.columns[(contribs.sum(axis = 0) != 0)]]
+                    tmp.to_csv('data/true_weights_{}_{}_w{}_{}.dat'.format(cancer_type, code_name, rep, num_muts), sep = '\t', float_format = '%.6f')
+                # prepare synthetic mutational catalogs
+                info_label = '{}\t{}\tw_{}\t{}'.format(cfg.tool, code_name, rep, num_muts)
+                muts = pd.Series(num_muts, index = contribs.index)
+                counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
+                save_catalogs(counts = counts)
+                true_res = (contribs.T * muts).T                    # data frame with true signature contributions
+                timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type)         # fit using the tool defined in MS_config.py
+                if evaluate_fit_quality:
+                    assess_fit_quality(info_label, input_catalog = counts, sig_estimates = 'signature_results/{}-contribution.dat'.format(cfg.tool), extra_col = cancer_type, sample_info = sample_info)
+                evaluate_main(info_label, true_res.T, muts, extra_col = cancer_type)
+        # zip signature activity estimates
         zip_oname = '../signature_results-{}-{}-{}-{}.zip'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type)
-        system('zip {} signature_results/contribution-*.lzma'.format(zip_oname))            # zip signature activity estimates
+        system('zip {} signature_results/contribution-*.lzma signature_results/fit_quality_results-*.dat'.format(zip_oname))
         if cfg.tool == 'sigfit':                                    # if running sifgit, save also its lower activity estimates
             system('zip ../lower90-{}-{}-{}-{}.zip signature_results/lower90-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
         shutil.rmtree('signature_results')                          # remove all result files
@@ -193,15 +217,14 @@ def prune_reference_and_fit_synthetic(cancer_types, code_name):
                     stats.append({'cancer_type': cancer_type, 'weights': 'w_{}'.format(rep), '#muts': num_muts, '#sigs_chosen': len(active_signatures), 'sigs_chosen': ','.join(active_signatures)})
                     # prepare the reference list that includes only the sufficiently active signatures
                     prepare_relevant_COSMIC(cancer_type, chosen_sigs = active_signatures)
-                    if contribs is not None:
-                        info_label = '{}\t{}\tw_{}\t{}'.format(cfg.tool, code_name, rep, num_muts)
-                        muts = pd.Series(num_muts, index = contribs.index)
-                        counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
-                        save_catalogs(counts = counts)
-                        true_res = (contribs.T * muts).T
-                        timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type, which_setup = 'Y')
-                        print('cancer_type\t{}'.format(cfg.header_line))
-                        evaluate_main(info_label, true_res.T, muts, extra_col = cancer_type)
+                    info_label = '{}\t{}\tw_{}\t{}'.format(cfg.tool, code_name, rep, num_muts)
+                    muts = pd.Series(num_muts, index = contribs.index)
+                    counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
+                    save_catalogs(counts = counts)
+                    true_res = (contribs.T * muts).T
+                    timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type, which_setup = 'Y')
+                    print('cancer_type\t{}'.format(cfg.header_line))
+                    evaluate_main(info_label, true_res.T, muts, extra_col = cancer_type)
         system('zip ../signature_results-{}-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
         shutil.rmtree('signature_results')  # remove all result files
         shutil.rmtree('data')               # remove the directory with synthetic data

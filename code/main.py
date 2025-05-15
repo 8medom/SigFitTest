@@ -45,7 +45,7 @@ matus.medo@unifr.ch, 2025
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'SET3')
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = [0.1, 0.1], code_name = 'SET6')
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], code_name = 'SET3', evaluate_fit_quality = True)
-fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = [0.1, 0.1], num_out_of_reference = 50, code_name = 'SET6', evaluate_fit_quality = True)
+# fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = [0.1, 0.1], code_name = 'SET6', evaluate_fit_quality = True)
 
 
 # # generate mutational catalogs for the provided cancer types, load the previously computed results of
@@ -83,7 +83,7 @@ fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung
 # fit_with_cosmic3_subsampled_real_catalogs(code_name = 'SET7')
 
 
-# # use the fitting tool set in the variable 'tool' in MS_config.py to fit  provided input catalog, evaluate
+# # use the fitting tool set in the variable 'tool' in MS_config.py to fit a provided input catalog, evaluate
 # # the estimated signature weights against the provided catalog ground truth (catalog_GT); a subset of COSMICv3.3
 # # can be provided to constrain the reference signature catalog
 # # output:
@@ -95,3 +95,18 @@ fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung
 
 # # analyze real samples and evaluate the differences between results obtained by different tools
 # differences_real_samples()
+
+
+# # assess the fit quality for a given set of signature estimates and the corresponding mutational catalog
+# import glob
+# result_files = glob.glob('../*-contribution.dat')
+# for fname in result_files:
+#     assess_fit_quality(input_catalog = '../samples_Sasha_Blay-num_muts_threshold_100.dat', sig_estimates = fname, ref_genome = 'GRCh37')
+
+#
+# for frac_out_of_reference in [0.1, 0.2, 0.3]:
+#     fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC'], code_name = 'mixed_samples_1', out_of_reference_weights = {0.5: 0.1}, how_flag_bad = how_flag_bad)
+#     assess_fit_quality(
+
+fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = {0.5: [0.2]}, code_name = 'FIND1', evaluate_fit_quality = True)
+
