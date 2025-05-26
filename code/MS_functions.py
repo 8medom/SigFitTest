@@ -103,8 +103,7 @@ def fit_with_cosmic3_synthetic_simple(sig_weights, code_name):
 
 # fitting synthetic mutational catalogs with empirical signatures weights, using all COSMICv3 signatures as a reference
 # out-of-reference signatures are assigned the weights given in out_of_reference_weights (default: no out-of-reference signatures)
-# examples: out_of_reference_weights = [0.2, 0.1] means that one out of reference signature has weight 20% and another has weight 10%
-# out-of-reference signatures are the same for all samples in a cohort
+# out_of_reference_weights is a dictionary with the fractions of samples and their respective contributions of out-of-reference signatures; the remaining samples are assumed to have no out-of-reference signatures; e.g., out_of_reference_weights = {0.5: [0.2, 0.1], 0.3: [0.1]} means that 50% of samples have 20% of mutations due to one out-of-reference signature and 10% of mutations due to another out-of-reference signatures; further 30% of samples have 10% of mutations due to an out-of-reference signature; remaining 20% of samples have no out-of-reference signatures
 def fit_with_cosmic3_synthetic(cancer_types, code_name, out_of_reference_weights = {}, save_true_weights = False, evaluate_fit_quality = False):
     print('=== fitting synthetic mutational catalogs ===')
     if out_of_reference_weights:                                # some samples have out of reference signatures
@@ -132,6 +131,7 @@ def fit_with_cosmic3_synthetic(cancer_types, code_name, out_of_reference_weights
             # choose N_samples from all samples in the empirical signature distribution (with repetition)
             who = rng.choice(empirical.shape[0], size = cfg.N_samples, replace = True)
             for num_muts in cfg.num_muts_list_short:                # to gradually increase the number of mutations
+                # prepare true signature weights for synthetic mutational catalogs
                 contribs = generate_weights_empirical(num_muts, empirical.iloc[who].astype('double').reset_index(drop = True))
                 sample_info = []                                    # info about out of reference signatures for each sample
                 for i, ix in enumerate(contribs.index):             # add out-of-reference signature for each sample (if needed)
@@ -453,3 +453,84 @@ def differences_real_samples():
     print(tmp.groupby('Cancer type')['Tot difference'].count())
     print('\n\nTotal difference between the results stratified by cancer type:')
     print(tmp.groupby('Cancer type')['Tot difference'].median())
+
+
+# fitting synthetic mutational catalogs that correspond to clones and their corresponding bulk (sum over clones)
+# clone sizes are specified by the clone_sizes; signature weights are specified for each clone by sig_weights
+# for fitting, all COSMICv3 signatures are used as a reference
+# when tot_out_of_reference > 0, the specified fraction of mutations in each clone are due to an out-of-reference signature
+# the out-of-reference signature is the same for all clones from a given patient (this assumption can be modified)
+def fit_with_cosmic3_synthetic_clones(code_name, clone_sizes, sig_weights, tot_out_of_reference = 0):
+    print('\n=== fitting synthetic mutational catalogs with simple clonal structures using COSMICv3 ===')
+    print('clone sizes: {}'.format(', '.join([str(clone_sizes[c]) for c in clone_sizes])))
+    print('out of reference weight: {:.2f}'.format(tot_out_of_reference))
+    n_clones = len(clone_sizes.keys())
+    n_bulk_samples = cfg.N_samples // (1 + n_clones)                # number of bulk samples whose catalogs are sums of the clones
+    muts_bulk = sum(clone_sizes.values())
+    if cfg.N_samples % (n_clones + 1) != 0:
+        print('change cfg.N_samples so that it can be divided by {} (number of clones + 1 for bulk)'.format(n_clones + 1))
+        sys.exit(1)
+    for c in clone_sizes:
+        if c not in sig_weights:
+            print('signature composition of clone {} is missing'.format(c))
+            sys.exit(1)
+        sig_weights_one_clone = sig_weights[c]
+        sum_of_weights = sum(sig_weights_one_clone.values())
+        if abs(sum_of_weights - 1) > cfg.EPSILON:
+            print('signature weights in clone {} sum to {:4f}, not to 1'.format(c, sum_of_weights))
+            sys.exit(1)
+    ttt = open('../running_times-{}-{}.dat'.format(cfg.WGS_or_WES, cfg.tool), 'a')
+    xxx = open('../stdout-{}.txt'.format(cfg.tool), 'a')
+    yyy = open('../stderr-{}.txt'.format(cfg.tool), 'a')
+    if not isdir('data'): mkdir('data')
+    if not isdir('signature_results'): mkdir('signature_results')
+    rng = np.random.default_rng(0)                                  # initialize the RNG
+    for rep in range(cfg.num_realizations):
+        print('\n{}: starting run {} for {}'.format(cfg.tool, rep, code_name))
+        print(cfg.header_line)
+        contribs = pd.DataFrame(0, index = ['S{}'.format(x) for x in range(cfg.N_samples)], columns = cfg.input_sigs.columns, dtype = float)
+        num_muts_list = []
+        for n in range(cfg.N_samples):
+            which_clone = n % (n_clones + 1)
+            which_bulk = n // (n_clones + 1)
+            if which_clone == 0:                                    # placeholder for future bulk samples
+                num_muts_list.append(muts_bulk)
+                contribs.loc['S{}'.format(n), 'SBS1'] = 1
+            else:
+                num_muts_list.append(clone_sizes[which_clone])
+                sigs_here = sig_weights[which_clone]
+                for sig in sigs_here:                               # use provided signature weights scaled by tot_out_of_reference
+                    contribs.loc['S{}'.format(n), sig] = (1 - tot_out_of_reference) * sigs_here[sig]
+                out_of_ref_sig = rng.choice(cfg.out_sigs)
+                contribs.loc['S{}'.format(n), out_of_ref_sig] = tot_out_of_reference
+        # prepare synthetic mutational catalogs
+        muts = pd.Series(num_muts_list, index = contribs.index)
+        num_muts = muts.mean()                                      # mean number of mutations in the analyzed samples
+        info_label = '{}\t{}_{:.0f}%out\t{}\tw_{}\t{:.0f}'.format(cfg.tool, code_name, 100 * tot_out_of_reference, n_bulk_samples, rep, num_muts)
+        counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
+        for n in range(n_bulk_samples):
+            bulk_sample = n * (n_clones + 1)
+            contribs.loc['S{}'.format(bulk_sample)] = 0
+            counts['S{}'.format(bulk_sample)] = 0
+            for c in range(1, n_clones + 1):
+                contribs.loc['S{}'.format(bulk_sample)] += contribs.loc['S{}'.format(bulk_sample + c)] * clone_sizes[c] / muts_bulk
+                counts['S{}'.format(bulk_sample)] += counts['S{}'.format(bulk_sample + c)]
+        save_catalogs(counts = counts)
+        # data frame with true signature contributions
+        true_res = (contribs.T * muts).T
+        # run the fitting tool defined in variable tool in MS_config.py
+        timeout_run(info_label, ttt, xxx, yyy)
+        # evaluate the consistency between the bulk and the clones
+        evaluate_inconsistency(info_label, n_clones, muts)
+        # evaluate the estimated signature weights
+        evaluate_main(info_label, true_res.T, muts, compress_result_file = False)
+        # input('ok?')
+        rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}-{}-w_{}-{}.dat'.format(cfg.WGS_or_WES, cfg.tool, code_name, rep, num_muts))
+        sleep(30)
+    # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
+    # system('zip ../signature_results-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name))
+    # shutil.rmtree('signature_results')  # remove all result files
+    # shutil.rmtree('data')               # remove the directory with synthetic data
+    ttt.close()
+    xxx.close()
+    yyy.close()

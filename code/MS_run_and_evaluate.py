@@ -407,10 +407,10 @@ def evaluate_fits(info_label, input_profiles, extra_col = None, ref_sigs = 'COSM
     output_file.close()
 
 
+#! wT clearly influences the results of bootstrapping (when original wT is small, z-scores tend to be negative); one probably would need to do something about the tools that have small wT
+#! for simulated catalogs, should we use wT * m mutations or m mutations?
+#! one should test assessing samples using L_2^1 and L_2^3
 def assess_fit_quality(info_label, input_catalog, sig_estimates, ref_sigs = 'COSMIC_v3', ref_genome = 'GRCh38', boot_realizations = 1000, extra_col = None, sample_info = None):
-    # print('input mutational catalogs: {}'.format(input_catalog))
-    # print('      signature estimates: {}'.format(sig_estimates))
-    if 'COSMICv34' in sig_estimates: ref_sigs = 'COSMIC_v3.4'
     rng2 = np.random.default_rng(0)                                     # private RNG for this function only
     ref_catalog = pd.read_csv('../input/{}_SBS_{}.txt'.format(ref_sigs, ref_genome), sep = '\t', index_col = 0)
     if isinstance(input_catalog, str):                                  # path to the input catalog has been passed
@@ -418,14 +418,13 @@ def assess_fit_quality(info_label, input_catalog, sig_estimates, ref_sigs = 'COS
     elif isinstance(input_catalog, pd.DataFrame):                       # DataFrame has been passed
         input_profiles = input_catalog
     else:
-        print('do not know what to do with input_catalog {}'.format(type(input_catalog)))
+        print('input_catalog must be a string (file name) or a pandas DataFrame')
         sys.exit(1)
     input_muts = input_profiles.sum()                                   # numbers of mutations in the samples
-    try:
+    if isinstance(sig_estimates, str):                                  # path to the signature estimates has been passed
         estimated_sigs = pd.read_csv(sig_estimates, sep = ',', index_col = 0)
-    except:
-        print('cannot read signature estimates from {}'.format(sig_estimates))
-        return None
+    else:                                                               # DataFrame has been passed
+        estimated_sigs = sig_estimates
     sample_sums = estimated_sigs.sum(axis = 0)
     if sample_sums.max() > 2:
         print('provided signature estimates have been inferred to be absolute')
@@ -454,7 +453,7 @@ def assess_fit_quality(info_label, input_catalog, sig_estimates, ref_sigs = 'COS
         profile_reconstructed_norm = profile_reconstructed / profile_reconstructed.sum()
         cos_val = 1 - cosine(input_profiles_norm[sample], profile_reconstructed)
         L1_val = (input_profiles_norm[sample] - profile_reconstructed).abs().sum()
-        L2_val = np.sqrt(np.power(input_profiles_norm[sample] - profile_reconstructed, 2).sum())
+        L2_0 = np.sqrt(np.power(input_profiles_norm[sample] - profile_reconstructed, 2).sum())                          # L_2^0
         L2_bootstrap = []
         for boot_rep in range(boot_realizations):
             counts_bootstrap = np.zeros(96, dtype = int)                                                                # zero counts
@@ -462,13 +461,60 @@ def assess_fit_quality(info_label, input_catalog, sig_estimates, ref_sigs = 'COS
             profile_bootstrap = counts_bootstrap.astype(float) / input_muts[sample]
             L2_boot = np.sqrt(np.power(profile_bootstrap - profile_reconstructed, 2).sum())
             L2_bootstrap.append(L2_boot)
-        L2_boot_mean = np.mean(L2_bootstrap)
-        L2_boot_std = np.std(L2_bootstrap)
-        z_score = (L2_val - L2_boot_mean) / L2_boot_std
+        L2_2_mean = np.mean(L2_bootstrap)                                                                               # L_2^2
+        L2_2_std = np.std(L2_bootstrap)
+        z_score = (L2_0 - L2_2_mean) / L2_2_std
+        # p_value = (np.array(L2_bootstrap) > L2_0).sum() / boot_realizations   # empirical p-value estimate
         p_value = 1 - norm.cdf(z_score)
-        #! export to string differently above 0.001 and below (enginnering notation)
-        # p_value = (np.array(L2_bootstrap) > L2_val).sum() / boot_realizations
+        if p_value < 0.001: p_val_string = '{:.2e}'.format(p_value)
+        else: p_val_string = '{:.4f}'.format(p_value)
         if sample_info != None: extra = '\t{}'.format(sample_info[i])
         else: extra = ''
-        output_file.write('{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(sample, input_muts[sample], estimated_sigs[sample].sum(), cos_val, L1_val, L2_val, L2_boot_mean, L2_boot_std, z_score, p_value, extra))
+        output_file.write('{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{}{}\n'.format(sample, input_muts[sample], estimated_sigs[sample].sum(), cos_val, L1_val, L2_0, L2_2_mean, L2_2_std, z_score, p_val_string, extra))
+    output_file.close()
+
+
+def evaluate_inconsistency(info_label, n_clones, muts, pad_with_unassigned = True):
+    estimated_sigs = pd.read_csv('signature_results/{}-contribution.dat'.format(cfg.tool), sep = ',', index_col = 0)
+    if cfg.tool in cfg.tools_that_produce_relative_contributions:
+        for col in estimated_sigs.columns:
+            estimated_sigs[col] *= muts[col]
+    if 'Unassigned' not in estimated_sigs.index: estimated_sigs.loc['Unassigned'] = 0
+    for col in estimated_sigs.columns:
+        unassigned = muts[col] - estimated_sigs[col].sum()
+        estimated_sigs.loc['Unassigned', col] += unassigned
+    if estimated_sigs.shape[1] % (n_clones + 1) != 0:
+        print('the provided number of clones {} is incompatible with the number of columns {} in the result file'.format(n_clones, estimated_sigs.shape[1]))
+        sys.exit(1)
+    n_bulk_samples = cfg.N_samples // (1 + n_clones)        # number of bulk samples whose catalogs are sums of the clones
+    inconsistency_vals = []
+    output_file = open('../inconsistency_values-{}.dat'.format(info_label.split('\t')[0]), 'a')
+    for n in range(n_bulk_samples):
+        bulk_sample = n * (n_clones + 1)
+        bulk = estimated_sigs['S{}'.format(bulk_sample)].squeeze()
+        clone_cols = ['S{}'.format(bulk_sample + c) for c in range(1, n_clones + 1)]
+        clones = estimated_sigs[clone_cols]
+        sigs_clones = clones.sum(axis = 1)
+        L1 = 0
+        if pad_with_unassigned:     # use unassigned mutations to conservatively estimate the inconsistency
+            reserve_clones = clones.loc['Unassigned'].sum()     # all unassigned mutations in the clones
+            reserve_bulk = bulk.loc['Unassigned'].sum()         # unassigned mutations in the bulk
+            for sig in sigs_clones.index:
+                if sig != 'Unassigned':
+                    diff = sigs_clones[sig] - bulk[sig]
+                    if diff > 0:    # clones too high, try to pad with unassigned mutations from the bulk
+                        to_pad = min(diff, reserve_bulk)
+                        diff -= to_pad
+                        reserve_bulk -= to_pad
+                    else:           # bulk too high, try to pad with unassigned mutations from the clones
+                        to_pad = min(-diff, reserve_clones)
+                        diff += to_pad
+                        reserve_clones -= to_pad
+                    L1 += abs(diff)
+        else:   # simple computation of inconsistency using signatures alone, without unassigned mutations
+            for sig in sigs_clones.index:
+                if sig != 'Unassigned':
+                    L1 += abs(sigs_clones[sig] - bulk[sig])
+        inconsistency = L1 / bulk.sum()
+        output_file.write('{}\t{}\t{:.4f}\n'.format(info_label, n, inconsistency))
     output_file.close()
