@@ -97,23 +97,49 @@ matus.medo@unifr.ch, 2025
 # differences_real_samples()
 
 
+# # assess the fit quality for a given set of signature estimates and the corresponding mutational catalog
+# import glob
+# result_files = glob.glob('../*-contribution.dat')
+# for fname in result_files:
+#     assess_fit_quality(input_catalog = '../samples_Sasha_Blay-num_muts_threshold_100.dat', sig_estimates = fname, ref_genome = 'GRCh37')
+
+
 # fit synthetic samples & assess the fit quality
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = {0.5: [0.2]}, code_name = 'FIND1', evaluate_fit_quality = True)
 
 
 # # clones & bulk synthetic catalogs, modeled after a specific patient sample
 # for tot_out_of_reference in [0, 0.1, 0.2, 0.3]:
-#     fit_with_cosmic3_synthetic_clones('like_P48B', clone_sizes = {1: 2846, 2: 2622, 3: 11710},
-#                                       sig_weights = {1: {'SBS16': 0.21, 'SBS18': 0.37, 'SBS21': 0.11, 'SBS46': 0.31},
-#                                                      2: {'SBS5': 0.16, 'SBS16': 0.12, 'SBS18': 0.44, 'SBS21': 0.10, 'SBS46': 0.18},
-#                                                      3: {'SBS3': 0.59, 'SBS5': 0.19, 'SBS18': 0.22}},
-#                                       tot_out_of_reference = tot_out_of_reference)
+#     fit_synthetic_clones('like_P48B', clone_sizes = {1: 2846, 2: 2622, 3: 11710},
+#                          sig_weights = {1: {'SBS16': 0.21, 'SBS18': 0.37, 'SBS21': 0.11, 'SBS46': 0.31},
+#                                         2: {'SBS5': 0.16, 'SBS16': 0.12, 'SBS18': 0.44, 'SBS21': 0.10, 'SBS46': 0.18},
+#                                         3: {'SBS3': 0.59, 'SBS5': 0.19, 'SBS18': 0.22}},
+#                          tot_out_of_reference = tot_out_of_reference)
 
 
-# clones & bulk synthetic catalogs, simple signature activities, gradually increasing the number of mutations
+# # clones & bulk synthetic catalogs, simple signature activities, gradually increasing the number of mutations
+# for muts in [500, 2000, 8000]:
+#     for tot_out_of_reference in [0, 0.1, 0.2, 0.3]:
+#         fit_synthetic_clones('simple_clones', clone_sizes = {1: muts, 2: muts},
+#                              sig_weights = {1: {'SBS1': 0.5, 'SBS7a': 0.3, 'SBS7c': 0.2},
+#                                             2: {'SBS1': 0.3, 'SBS2': 0.4, 'SBS13': 0.3}},
+#                              tot_out_of_reference = tot_out_of_reference)
+
+# fit_with_cosmic3_synthetic_simple(sig_weights = {'SBS1': 0.48, 'SBS2': 0.04, 'SBS13': 0.03, 'SBS7a': 0.27, 'SBS7c': 0.18}, code_name = 'CLONE1_PART_CLONE2')
+# fit_with_cosmic3_synthetic_simple(sig_weights = {'SBS1': 0.32, 'SBS2': 0.36, 'SBS13': 0.27, 'SBS7a': 0.03, 'SBS7c': 0.02}, code_name = 'CLONE2_PART_CLONE1')
+fit_with_cosmic3_synthetic_simple(sig_weights = {'SBS1': 0.4, 'SBS2': 0.2, 'SBS13': 0.15, 'SBS7a': 0.15, 'SBS7c': 0.1}, code_name = 'CLONE1_CLONE2_AVG')
+sys.exit(1)
+# check what happens when the clones are not determined perfectly
 for muts in [500, 2000, 8000]:
-    for tot_out_of_reference in [0, 0.1, 0.2, 0.3]:
-        fit_with_cosmic3_synthetic_clones('simple_clones', clone_sizes = {1: muts, 2: muts},
-                                          sig_weights = {1: {'SBS1': 0.5, 'SBS7a': 0.3, 'SBS7c': 0.2},
-                                                         2: {'SBS1': 0.3, 'SBS2': 0.4, 'SBS13': 0.3}},
-                                          tot_out_of_reference = tot_out_of_reference)
+    for tot_out_of_reference in [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.40]:
+        for clone_error_mag in [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.40]:
+            fit_synthetic_clones('imperfect_clones~error~{:.0f}%'.format(100 * clone_error_mag),
+                                 clone_sizes = {1: muts, 2: muts},
+                                 sig_weights = {1: {'SBS7a': 0.3, 'SBS7c': 0.7},
+                                                2: {'SBS2': 0.6, 'SBS13': 0.4}},
+                                 # sig_weights = {1: {'SBS1': 0.5, 'SBS7a': 0.3, 'SBS7c': 0.2},
+                                 #                2: {'SBS1': 0.3, 'SBS2': 0.4, 'SBS13': 0.3}},
+                                 # sig_weights = {1: {'SBS1': 0.48, 'SBS2': 0.04, 'SBS13': 0.03, 'SBS7a': 0.27, 'SBS7c': 0.18},
+                                 #                2: {'SBS1': 0.32, 'SBS2': 0.36, 'SBS13': 0.27, 'SBS7a': 0.03, 'SBS7c': 0.02}},
+                                 tot_out_of_reference = tot_out_of_reference,
+                                 clone_error_mag = clone_error_mag)

@@ -460,7 +460,9 @@ def differences_real_samples():
 # for fitting, all COSMICv3 signatures are used as a reference
 # when tot_out_of_reference > 0, the specified fraction of mutations in each clone are due to an out-of-reference signature
 # the out-of-reference signature is the same for all clones from a given patient (this assumption can be modified)
-def fit_with_cosmic3_synthetic_clones(code_name, clone_sizes, sig_weights, tot_out_of_reference = 0):
+# when clone_error_mag > 0, some fraction of mutations from clone 1 are considered as mutations from clone 2 and vice versa
+# (this feature is implemented only for samples with two clones)
+def fit_synthetic_clones(code_name, clone_sizes, sig_weights, tot_out_of_reference = 0, clone_error_mag = 0):
     print('\n=== fitting synthetic mutational catalogs with simple clonal structures using COSMICv3 ===')
     print('clone sizes: {}'.format(', '.join([str(clone_sizes[c]) for c in clone_sizes])))
     print('out of reference weight: {:.2f}'.format(tot_out_of_reference))
@@ -506,15 +508,49 @@ def fit_with_cosmic3_synthetic_clones(code_name, clone_sizes, sig_weights, tot_o
         # prepare synthetic mutational catalogs
         muts = pd.Series(num_muts_list, index = contribs.index)
         num_muts = muts.mean()                                      # mean number of mutations in the analyzed samples
-        info_label = '{}\t{}_{:.0f}%out\t{}\tw_{}\t{:.0f}'.format(cfg.tool, code_name, 100 * tot_out_of_reference, n_bulk_samples, rep, num_muts)
+        info_label = '{}\t{}~{:.0f}%out\t{}\tw_{}\t{:.0f}'.format(cfg.tool, code_name, 100 * tot_out_of_reference, n_bulk_samples, rep, num_muts)
         counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
         for n in range(n_bulk_samples):
             bulk_sample = n * (n_clones + 1)
-            contribs.loc['S{}'.format(bulk_sample)] = 0
-            counts['S{}'.format(bulk_sample)] = 0
+            contribs.loc['S{}'.format(bulk_sample)] = 0             # signature contributions are computed as weighted average of clones
+            counts['S{}'.format(bulk_sample)] = 0                   # drop generated counts and compute them by summing clones instead
             for c in range(1, n_clones + 1):
                 contribs.loc['S{}'.format(bulk_sample)] += contribs.loc['S{}'.format(bulk_sample + c)] * clone_sizes[c] / muts_bulk
                 counts['S{}'.format(bulk_sample)] += counts['S{}'.format(bulk_sample + c)]
+        if clone_error_mag > 0:
+            if n_clones != 2:
+                print('clone_error_mag is so far implemented only for samples with two clones!')
+                sys.exit(1)
+            # print(counts)
+            for n in range(n_bulk_samples):
+                bulk_sample = n * (n_clones + 1)
+                c1 = counts['S{}'.format(bulk_sample + 1)].copy()               # profile of clone C1
+                c1_in_c2 = round(c1.sum() * clone_error_mag * rng.random())     # number of C1 mutations that will be counted as C2
+                c1_in_c2 = round(c1.sum() * 0.1)
+                from_c1 = pd.Series(0, index = cfg.input_sigs.index)
+                for _ in range(c1_in_c2):
+                    ix = rng.choice(c1.index, p = c1 / c1.sum())
+                    c1[ix] -= 1
+                    from_c1[ix] += 1
+                c2 = counts['S{}'.format(bulk_sample + 2)].copy()               # profile of clone C2
+                c2_in_c1 = round(c2.sum() * clone_error_mag * rng.random())     # number of C2 mutations that will be counted as C1
+                c2_in_c1 = round(c2.sum() * 0.1)
+                from_c2 = pd.Series(0, index = cfg.input_sigs.index)
+                for _ in range(c2_in_c1):
+                    ix = rng.choice(c2.index, p = c2 / c2.sum())
+                    c2[ix] -= 1
+                    from_c2[ix] += 1
+                counts['S{}'.format(bulk_sample + 1)] += from_c2 - from_c1      # move the chosen mutations between the clones
+                muts['S{}'.format(bulk_sample + 1)] += from_c2.sum() - from_c1.sum()
+                counts['S{}'.format(bulk_sample + 2)] += from_c1 - from_c2
+                muts['S{}'.format(bulk_sample + 2)] += from_c1.sum() - from_c2.sum()
+                contribs_1 = (muts['S1'] - c1_in_c2) * contribs.loc['S{}'.format(bulk_sample + 1)] + c2_in_c1 * contribs.loc['S{}'.format(bulk_sample + 2)]
+                contribs_1 /= contribs_1.sum()
+                contribs_2 = (muts['S2'] - c2_in_c1) * contribs.loc['S{}'.format(bulk_sample + 2)] + c1_in_c2 * contribs.loc['S{}'.format(bulk_sample + 1)]
+                contribs_2 /= contribs_2.sum()
+                contribs.loc['S{}'.format(bulk_sample + 1)] = contribs_1
+                contribs.loc['S{}'.format(bulk_sample + 2)] = contribs_2
+        print(contribs[['SBS1', 'SBS2', 'SBS13', 'SBS7a', 'SBS7c']])
         save_catalogs(counts = counts)
         # data frame with true signature contributions
         true_res = (contribs.T * muts).T
@@ -524,9 +560,11 @@ def fit_with_cosmic3_synthetic_clones(code_name, clone_sizes, sig_weights, tot_o
         evaluate_inconsistency(info_label, n_clones, muts)
         # evaluate the estimated signature weights
         evaluate_main(info_label, true_res.T, muts, compress_result_file = False)
-        # input('ok?')
+        input('ok?')
         rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}-{}-w_{}-{}.dat'.format(cfg.WGS_or_WES, cfg.tool, code_name, rep, num_muts))
-        sleep(30)
+        print('\ngonna take a nap for 10 seconds...')
+        sleep(10)
+        print('up again!\n')
     # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
     # system('zip ../signature_results-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name))
     # shutil.rmtree('signature_results')  # remove all result files
