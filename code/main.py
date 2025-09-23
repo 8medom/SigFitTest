@@ -48,6 +48,12 @@ matus.medo@unifr.ch, 2025
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = [0.1, 0.1], code_name = 'SET6', evaluate_fit_quality = True)
 
 
+# generate_mixed_synthetic_catalogs(num_samples = 1000, cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], rng_seed = 0, code_name = 'MIXED')
+for ct in ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL']:
+    fit_and_assess(input_catalog = '../generated_data/data_for_deconstructSigs_MIXED_{}.dat'.format(ct),
+                   code_name = 'MIXED_{}'.format(ct))
+
+
 # # generate mutational catalogs for the provided cancer types, load the previously computed results of
 # # fit_with_cosmic3_synthetic ("SET3"), use them to find which signatures are sufficiently active, fit
 # # the catalogs using the active signatures as a reference, and evaluate the estimated signature weights
@@ -102,6 +108,7 @@ matus.medo@unifr.ch, 2025
 # result_files = glob.glob('../*-contribution.dat')
 # for fname in result_files:
 #     assess_fit_quality(input_catalog = '../samples_Sasha_Blay-num_muts_threshold_100.dat', sig_estimates = fname, ref_genome = 'GRCh37')
+# assess_fit_quality(info_label = 'SPA-COSMICv34', input_catalog = '../mutation_catalogs_CBTN_bulk_and_clones-num_muts_threshold_100.dat', sig_estimates = '../SPA-COSMICv34-contribution.dat', ref_sigs = 'COSMIC_v3.4', ref_genome = 'GRCh38')
 
 
 # fit synthetic samples & assess the fit quality
@@ -117,29 +124,27 @@ matus.medo@unifr.ch, 2025
 #                          tot_out_of_reference = tot_out_of_reference)
 
 
-# # clones & bulk synthetic catalogs, simple signature activities, gradually increasing the number of mutations
+#! generalize fit_synthetic_clones to take sig_weights values as integers---the corresponding number of random signatures will be chosen for each sample then
+# clones & bulk synthetic catalogs, simple signature activities, gradually increasing the number of mutations
 # for muts in [500, 2000, 8000]:
 #     for tot_out_of_reference in [0, 0.1, 0.2, 0.3]:
-#         fit_synthetic_clones('simple_clones', clone_sizes = {1: muts, 2: muts},
+#         fit_synthetic_clones('simple_clones2', clone_sizes = {1: muts, 2: muts},
 #                              sig_weights = {1: {'SBS1': 0.5, 'SBS7a': 0.3, 'SBS7c': 0.2},
 #                                             2: {'SBS1': 0.3, 'SBS2': 0.4, 'SBS13': 0.3}},
 #                              tot_out_of_reference = tot_out_of_reference)
 
-# fit_with_cosmic3_synthetic_simple(sig_weights = {'SBS1': 0.48, 'SBS2': 0.04, 'SBS13': 0.03, 'SBS7a': 0.27, 'SBS7c': 0.18}, code_name = 'CLONE1_PART_CLONE2')
-# fit_with_cosmic3_synthetic_simple(sig_weights = {'SBS1': 0.32, 'SBS2': 0.36, 'SBS13': 0.27, 'SBS7a': 0.03, 'SBS7c': 0.02}, code_name = 'CLONE2_PART_CLONE1')
-fit_with_cosmic3_synthetic_simple(sig_weights = {'SBS1': 0.4, 'SBS2': 0.2, 'SBS13': 0.15, 'SBS7a': 0.15, 'SBS7c': 0.1}, code_name = 'CLONE1_CLONE2_AVG')
-sys.exit(1)
-# check what happens when the clones are not determined perfectly
-for muts in [500, 2000, 8000]:
-    for tot_out_of_reference in [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.40]:
-        for clone_error_mag in [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.40]:
-            fit_synthetic_clones('imperfect_clones~error~{:.0f}%'.format(100 * clone_error_mag),
-                                 clone_sizes = {1: muts, 2: muts},
-                                 sig_weights = {1: {'SBS7a': 0.3, 'SBS7c': 0.7},
-                                                2: {'SBS2': 0.6, 'SBS13': 0.4}},
-                                 # sig_weights = {1: {'SBS1': 0.5, 'SBS7a': 0.3, 'SBS7c': 0.2},
-                                 #                2: {'SBS1': 0.3, 'SBS2': 0.4, 'SBS13': 0.3}},
-                                 # sig_weights = {1: {'SBS1': 0.48, 'SBS2': 0.04, 'SBS13': 0.03, 'SBS7a': 0.27, 'SBS7c': 0.18},
-                                 #                2: {'SBS1': 0.32, 'SBS2': 0.36, 'SBS13': 0.27, 'SBS7a': 0.03, 'SBS7c': 0.02}},
-                                 tot_out_of_reference = tot_out_of_reference,
-                                 clone_error_mag = clone_error_mag)
+
+# # check what happens when the clones are not determined perfectly
+# for muts in [500, 2000, 8000]:
+#     for tot_out_of_reference in np.linspace(0, 0.4, 9):
+#         for clone_error_mag in np.linspace(0, 0.4, 9):
+#             fit_synthetic_clones('imperfect_clones_1~error~{:.0f}%'.format(100 * clone_error_mag),
+#                                  clone_sizes = {1: muts, 2: muts},
+#                                  sig_weights = {1: {'SBS7a': 0.3, 'SBS7c': 0.7},
+#                                                 2: {'SBS2': 0.6, 'SBS13': 0.4}},
+#                                  # sig_weights = {1: {'SBS1': 0.5, 'SBS7a': 0.3, 'SBS7c': 0.2},
+#                                  #                2: {'SBS1': 0.3, 'SBS2': 0.4, 'SBS13': 0.3}},
+#                                  # sig_weights = {1: {'SBS1': 0.48, 'SBS2': 0.04, 'SBS13': 0.03, 'SBS7a': 0.27, 'SBS7c': 0.18},
+#                                  #                2: {'SBS1': 0.32, 'SBS2': 0.36, 'SBS13': 0.27, 'SBS7a': 0.03, 'SBS7c': 0.02}},
+#                                  tot_out_of_reference = tot_out_of_reference,
+#                                  clone_error_mag = clone_error_mag)
