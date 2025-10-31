@@ -428,7 +428,7 @@ def fit_and_assess(input_catalog, code_name, num_bootstrap = 100, do_sleep = Fal
     for col in res.columns:                         # assess the quality of fit for each sample
         # col = 'S199'
         normed_sample = counts[col] / muts[col]     # normalized sample
-        res[col] *= 1 / res[col].sum()              # force normalization of the estimated signature activities
+        res[col] /= res[col].sum()                  # force normalization of the estimated signature activities
         reconstruction = cosmic3.dot(res[col])      # reconstructed profile
         L1 = (normed_sample - reconstruction).abs().sum()
         L2 = np.sqrt(np.power(normed_sample - reconstruction, 2).sum())
