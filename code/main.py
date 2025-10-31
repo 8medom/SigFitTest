@@ -48,13 +48,8 @@ matus.medo@unifr.ch, 2025
 # fit_with_cosmic3_synthetic(cancer_types = ['Head-SCC', 'ColoRect-AdenoCA', 'Lung-AdenoCA', 'Skin-Melanoma', 'CNS-GBM', 'Stomach-AdenoCA', 'Liver-HCC', 'Lymph-BNHL'], out_of_reference_weights = [0.1, 0.1], code_name = 'SET6', evaluate_fit_quality = True)
 
 
-<<<<<<< HEAD
-generate_mixed_synthetic_catalogs(num_samples = 100, cancer_types = ['Head-SCC'], rng_seed = 0, code_name = 'MIXED')
-for ct in ['Head-SCC']:
-=======
 generate_mixed_synthetic_catalogs(num_samples = 100, cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'], rng_seed = 0, code_name = 'MIXED')
 for ct in ['Head-SCC', 'ColoRect-AdenoCA']:
->>>>>>> e6941328ffda7f2184de034f7360668836b89fbb
     fit_and_assess(input_catalog = '../generated_data/data_for_deconstructSigs_MIXED_{}.dat'.format(ct),
                    code_name = 'MIXED_{}'.format(ct))
 
