@@ -77,20 +77,16 @@ def fit_with_cosmic3_synthetic_simple(sig_weights, code_name):
         for sig in sig_weights: contribs[sig] = sig_weights[sig]
         sig_info = '~'.join(['{}({})'.format(sig, sig_weights[sig]) for sig in sig_weights.keys()])
         info_label = '{}\t{}\t{}\t{}'.format(cfg.tool, code_name, sig_info, num_muts)
-        # prepare synthetic mutational catalogs
-        muts = pd.Series(num_muts, index = contribs.index)
+        muts = pd.Series(num_muts, index = contribs.index)      # prepare synthetic mutational catalogs
         counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
         save_catalogs(counts = counts)
-        # data frame with true signature contributions
-        true_res = (contribs.T * muts).T
-        # run the fitting tool defined in variable tool in MS_config.py
-        timeout_run(info_label, ttt, xxx, yyy)
-        # evaluate the estimated signature weights
-        evaluate_main(info_label, true_res.T, muts)
-    # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
-    system('zip ../signature_results-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name))
-    shutil.rmtree('signature_results')  # remove all result files
-    shutil.rmtree('data')               # remove the directory with synthetic data
+        true_res = (contribs.T * muts).T                        # data frame with true signature contributions
+        timeout_run(info_label, ttt, xxx, yyy)                  # run the fitting tool defined in variable tool in MS_config.py
+        evaluate_main(info_label, true_res.T, muts)             # evaluate the estimated signature weights
+    zip_oname = '../signature_results-{}-{}-{}.zip'.format(cfg.WGS_or_WES, cfg.tool, code_name)
+    system('zip {} signature_results/contribution-*.lzma'.format(zip_oname))    # zip the estimated signature weights for all cohorts
+    shutil.rmtree('signature_results')                          # remove all result files
+    shutil.rmtree('data')                                       # remove the directory with synthetic data
     ttt.close()
     xxx.close()
     yyy.close()
@@ -100,7 +96,7 @@ def fit_with_cosmic3_synthetic_simple(sig_weights, code_name):
 # out-of-reference signatures are assigned the weights given in out_of_reference_weights (default: no out-of-reference signatures)
 # examples: out_of_reference_weights = [0.2, 0.1] means that one out of reference signature has weight 20% and another has weight 10%
 # out-of-reference signatures are the same for all samples in a cohort
-def fit_with_cosmic3_synthetic(cancer_types, code_name, out_of_reference_weights = [], save_true_weights = False):
+def fit_with_cosmic3_synthetic(cancer_types, code_name, out_of_reference_weights = [], save_true_weights = False, evaluate_fit_quality = False):
     tot_out_of_reference = sum(out_of_reference_weights)
     if tot_out_of_reference > 0: print('=== fitting synthetic mutational catalogs using COSMICv3; out-of-reference signatures have joint weight {:.4f} ==='.format(tot_out_of_reference))
     else: print('=== fitting synthetic mutational catalogs using COSMICv3 ===')
@@ -134,20 +130,18 @@ def fit_with_cosmic3_synthetic(cancer_types, code_name, out_of_reference_weights
                     muts = pd.Series(num_muts, index = contribs.index)
                     counts = prepare_data_from_signature_activity(rng = rng, muts = muts, contribs = contribs)
                     save_catalogs(counts = counts)
-                    # data frame with true signature contributions
-                    true_res = (contribs.T * muts).T
-                    # run the fitting tool defined in variable tool in MS_config.py
-                    timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type)
-                    # evaluate the estimated signature weights
+                    true_res = (contribs.T * muts).T                # data frame with true signature contributions
+                    timeout_run(info_label, ttt, xxx, yyy, extra_col = cancer_type)         # fit using the tool defined in MS_config.py
+                    if evaluate_fit_quality: evaluate_fits(info_label, counts, extra_col = cancer_type)
                     evaluate_main(info_label, true_res.T, muts, extra_col = cancer_type)
-        # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
-        system('zip ../signature_results-{}-{}-{}-{}.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
-        if cfg.tool == 'sigfit':
+        zip_oname = '../signature_results-{}-{}-{}-{}.zip'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type)
+        system('zip {} signature_results/contribution-*.lzma'.format(zip_oname))            # zip signature activity estimates
+        if cfg.tool == 'sigfit':                                    # if running sifgit, save also its lower activity estimates
             system('zip ../lower90-{}-{}-{}-{}.zip signature_results/lower90-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name, cancer_type))
-        shutil.rmtree('signature_results')  # remove all result files
+        shutil.rmtree('signature_results')                          # remove all result files
         if save_true_weights:
             system('zip ../true_signature_weights-{}-{}.zip data/true_weights*.dat'.format(cancer_type, code_name))
-        shutil.rmtree('data')               # remove the directory with synthetic data
+        shutil.rmtree('data')                                       # remove the directory with synthetic data
     ttt.close()
     xxx.close()
     yyy.close()
