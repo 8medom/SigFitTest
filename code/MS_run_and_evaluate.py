@@ -8,7 +8,7 @@ from threading import Timer                             # to time-out a process 
 import shlex                                            # to split a string using shell-like syntax
 import lzma                                             # to compress result files for future analysis
 from tqdm import tqdm                                   # for progress bar
-from scipy.stats import ranksums, pearsonr              # for the evaluation of results
+from scipy.stats import ranksums, pearsonr, norm        # for the evaluation of results
 from scipy.spatial.distance import cosine               # for sample reconstruction evaluation
 import MS_config as cfg                                 # all global stuff
 
@@ -69,7 +69,7 @@ def check_open(oname, extra_col):
         else:
             base = '\t'.join(cfg.header_line_full.split('\t')[1:])
             if extra_col == None: obj.write('sig_weights\t' + base + '\n')
-            else: obj.write('cancer_type\tweights\t' + base + '\tr_S1\tr_S2\tr_S3\tr_S4\tr_S5\tr_S6\n')
+            else: obj.write('cancer_type\tweights\t' + base + '\n')
     else: obj = open(oname, 'a')
     return obj
 
@@ -122,15 +122,17 @@ def load_results(info_label, muts, extra_col, fname):
 
 
 # compute the evaluation metrics for df when true weights are true_res
-def eval_results(info_label, true_res, muts, df, extra_col, recommended = False, ref_sigs = 'COSMIC_v3'):
+def eval_results(info_label, true_res, muts, df, extra_col, oname, recommended = False, ref_sigs = 'COSMIC_v3'):
     if true_res.ndim == 1:                      # possible legacy issue: true_res is a vector (i.e., all samples have the same composition)
         print('true_res should be a DataFrame specifying the true signature weight for each sample, not a vector')
         sys.exit(1)
     if info_label.count('\t') == 1:             # when fitting external data
         code_name, line_start = info_label.split('\t')[1], info_label.split('\t')[1]
-    else:                                       # for other cases, there is useful info (e.g., cancer type) in info_label.split('\t')[2]
-        code_name, line_start = info_label.split('\t')[1], info_label.split('\t')[2]
-    if recommended:
+    else:                                       # for others, there is useful info (e.g., cancer type) in info_label.split('\t')[-2]
+        code_name, line_start = info_label.split('\t')[1], info_label.split('\t')[-2]
+    if oname != None:
+        output_file = check_open('../{}.dat'.format(oname), extra_col)
+    elif recommended:
         output_file = check_open('../results-{}-{}-{}_recommended.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
     else:
         output_file = check_open('../results-{}-{}-{}.dat'.format(cfg.WGS_or_WES, code_name, cfg.tool), extra_col)
@@ -154,12 +156,9 @@ def eval_results(info_label, true_res, muts, df, extra_col, recommended = False,
     TAE = err.mean()                                            # mean of the fitting error over all samples
     TAE_std = err.std()                                         # std of the fitting error between the samples
     nRMSE = np.sqrt(np.power(err, 2).mean())                    # root mean square witting error
-    wtot_FP, wtot_FP_squared, num_FP_sigs, wtot_FN, num_FN_sigs, MAE_active, pearson_vals, P_vals, R_vals, S_vals, F_vals, MCC_vals = 0, 0, 0, 0, 0, 0, [], [], [], [], [], []
+    wtot_FP, wtot_FP_squared, num_FP_sigs, wtot_FN, num_FN_sigs, MAE_active, P_vals, R_vals, S_vals, F_vals, MCC_vals = 0, 0, 0, 0, 0, 0, [], [], [], [], []
     for sample in true_res.columns:
         either_pos = (true_res[sample] > 0) | (df[sample] > 0)      # see how many signatures have positive true or estimated weight
-        if either_pos.sum() >= 3:                                   # if they are at least three, compute the Pearson correlation between true and estimated weights (taking only those chosen signatures into account)
-            if np.std(true_res[sample][either_pos]) > cfg.EPSILON and np.std(df[sample][either_pos]) > cfg.EPSILON:   # to avoid one set of results to be all identical values (Pearson correlation then cannot be computed)
-                pearson_vals.append(pearsonr(true_res[sample][either_pos], df[sample][either_pos])[0])
         wtot_FP_one_sample, num_TP, num_TN, num_FP, num_FN = 0, 0, 0, 0, 0
         for sig in true_res.index:
             if true_res.loc[sig, sample] > 0:                       # active signature
@@ -209,20 +208,9 @@ def eval_results(info_label, true_res, muts, df, extra_col, recommended = False,
     w_norm = df / df.sum()
     n_eff = np.ma.masked_invalid(1 / np.power(w_norm, 2).sum()).mean()  # effective number of estimated signatures per sample
     if np.ma.is_masked(n_eff): n_eff = np.nan                       # if n_eff is masked for all samples, mean cannot be computed
-    if len(pearson_vals) >= 3: pearson = np.nanmean(pearson_vals)
-    else: pearson = np.nan
-    corr_out = ''
-    if extra_col != None and extra_col in cfg.top_sigs.keys():      # for empirical weights, cohort-wide correlations for top signatures
-        for sig in cfg.top_sigs[extra_col]:
-            if sig not in true_res.index: true_res.loc[sig] = 0     # top signature missing in the true result (can happen rarely)
-            if sig not in df.index: df.loc[sig] = 0                 # top signature missing in the results
-            if true_res.loc[sig].std() > 0 and df.loc[sig].std() > 0:
-                pearson_value = pearsonr(true_res.loc[sig], df.loc[sig])[0]
-            else: pearson_value = np.nan
-            corr_out = corr_out + '\t{:.4f}'.format(pearson_value)
     mean_num_muts = '{:.0f}'.format(muts.mean())
-    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}{}\n'.format(line_start, df.shape[1], mean_num_muts, TAE, TAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(S_vals), np.std(S_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals), pearson, corr_out)
-    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(line_start, df.shape[1], mean_num_muts, TAE, MAE_active, n_eff, weight_tot, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(S_vals), np.mean(F_vals), np.mean(MCC_vals), pearson)
+    full_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(line_start, df.shape[1], mean_num_muts, TAE, TAE_std, nRMSE, weight_tot, n_eff, MAE_active, wtot_FP, np.sqrt(wtot_FP_squared), num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.std(P_vals), np.mean(R_vals), np.std(R_vals), np.mean(S_vals), np.std(S_vals), np.mean(F_vals), np.std(F_vals), np.mean(MCC_vals), np.std(MCC_vals))
+    short_string = '{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}'.format(line_start, df.shape[1], mean_num_muts, TAE, MAE_active, n_eff, weight_tot, wtot_FP, num_FP_sigs, wtot_FN, num_FN_sigs, np.mean(P_vals), np.mean(R_vals), np.mean(S_vals), np.mean(F_vals), np.mean(MCC_vals))
     if extra_col == None:
         if recommended: print(short_string + '(recommended settings)')
         else: print(short_string)
@@ -235,10 +223,10 @@ def eval_results(info_label, true_res, muts, df, extra_col, recommended = False,
 
 
 # main function for evaluating the estimated signature weights
-def evaluate_main(info_label, true_res, muts, extra_col = None, compress_result_file = True):
+def evaluate_main(info_label, true_res, muts, extra_col = None, compress_result_file = True, oname = None):
     df = load_results(info_label, muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
     if df is not None:
-        eval_results(info_label, true_res, muts, df, extra_col)
+        eval_results(info_label, true_res, muts, df, extra_col, oname = oname)
         if cfg.tool.startswith('sigfit'):    # use recommended options for sigfit
             dfx = pd.read_csv('signature_results/{}-contribution_lower90.dat'.format(cfg.tool), sep = ',') # lower estimate
             dfx = dfx.rename(columns={'Unnamed: 0': 'signature'})
@@ -249,7 +237,7 @@ def evaluate_main(info_label, true_res, muts, extra_col = None, compress_result_
             df2[dfx < 0.01] = 0     # sigfit vignette: " In practice, ‘sufficiently non-zero’ means that the lower end of the Bayesian HPD interval (see the previous section) is above a threshold value close to zero (by default 0.01, and adjustable via the thresh argument)."
             df2 = (df2.T * muts).T  # number of mutations is a series (different for each sample)
             df2[df2 < 10] = 0
-            eval_results(info_label, true_res, muts, df2, extra_col, recommended = True)
+            eval_results(info_label, true_res, muts, df2, extra_col, recommended = True, oname = oname)
         elif cfg.tool == 'deconstructSigs': # use recommended options for deconstructSigs
             df2 = pd.read_csv('signature_results/{}-contribution.dat'.format(cfg.tool), sep = ',') # load the results
             df2 = df2.rename(columns={'Unnamed: 0': 'signature'})
@@ -257,7 +245,7 @@ def evaluate_main(info_label, true_res, muts, extra_col = None, compress_result_
             df2[df2 < 0.06] = 0     # deconstructSigs vignette: "...by default, deconstructSigs uses "signature.cutoff = 0.06""
             df2 = (df2.T * muts).T
             df2[df2 < 10] = 0
-            eval_results(info_label, true_res, muts, df2, extra_col, recommended = True)
+            eval_results(info_label, true_res, muts, df2, extra_col, recommended = True, oname = oname)
         if compress_result_file:
             simplified_label = info_label.replace('\t', '-').replace('(', '_').replace(')', '')
             if extra_col != None: simplified_label = extra_col + '-' + simplified_label
@@ -267,8 +255,13 @@ def evaluate_main(info_label, true_res, muts, extra_col = None, compress_result_
 
 # evaluate the signature weights estimated for subsampled real mutational catalogs
 def evaluate_real_catalogs(info_label, true_res, muts, aaa_file, compress_result_file = True, extra_col = 'real_data'):
-    code_name, weights = info_label.split('\t')[1], info_label.split('\t')[2]
+    if info_label.count('\t') == 1:
+        code_name, weights = info_label.split('\t')[1].split('_')[0], info_label.split('\t')[1].split('_')[1]
+    else:
+        code_name, weights = info_label.split('\t')[1], info_label.split('\t')[2]
     df = load_results(info_label, muts, extra_col, 'signature_results/{}-contribution.dat'.format(cfg.tool))
+    for sig in true_res.index:                  # zeros for all signatures that are present in the GT but absent in the loaded results
+        if sig not in df.index: df.loc[sig] = 0
     for sample in df.columns:                   # normalize the loaded results to weighted signature contributions
         df[sample] /= muts[sample]
     recommended = False
@@ -404,4 +397,55 @@ def evaluate_fits(info_label, input_profiles, extra_col = None, ref_sigs = 'COSM
         L2_val = np.sqrt(np.power(input_profiles_norm[sample] - profile_reconstructed, 2).sum())
         if extra_col == None: output_file.write('{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(estimated_sigs.shape[1], weights, sample, input_muts[sample], cos_val, L1_val, L2_val))
         else: output_file.write('{}\t{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\n'.format(extra_col, estimated_sigs.shape[1], weights, sample, input_muts[sample], cos_val, L1_val, L2_val))
+    output_file.close()
+
+
+def evaluate_inconsistency(info_label, n_clones, muts, pad_with_unassigned = True):
+    estimated_sigs = pd.read_csv('signature_results/{}-contribution.dat'.format(cfg.tool), sep = ',', index_col = 0)
+    if cfg.tool in cfg.tools_that_produce_relative_contributions:
+        for col in estimated_sigs.columns:
+            estimated_sigs[col] *= muts[col]
+    if 'Unassigned' not in estimated_sigs.index: estimated_sigs.loc['Unassigned'] = 0
+    for col in estimated_sigs.columns:
+        unassigned = muts[col] - estimated_sigs[col].sum()
+        estimated_sigs.loc['Unassigned', col] += unassigned
+    if estimated_sigs.shape[1] % (n_clones + 1) != 0:
+        print('the provided number of clones {} is incompatible with the number of columns {} in the result file'.format(n_clones, estimated_sigs.shape[1]))
+        sys.exit(1)
+    n_bulk_samples = cfg.N_samples // (1 + n_clones)        # number of bulk samples whose catalogs are sums of the clones
+    inconsistency_vals = []
+    parts = info_label.split('\t')
+    oname = '../inconsistency_values-{}-{}.dat'.format(parts[0], parts[1].split('~')[0])
+    if not isfile(oname):
+        output_file = open(oname, 'w')
+        output_file.write('% out\tmuts\tcohort\tsample\tinconsistency\n')
+    else: output_file = open(oname, 'a')
+    for n in range(n_bulk_samples):
+        bulk_sample = n * (n_clones + 1)
+        bulk = estimated_sigs['S{}'.format(bulk_sample)].squeeze()
+        clone_cols = ['S{}'.format(bulk_sample + c) for c in range(1, n_clones + 1)]
+        clones = estimated_sigs[clone_cols]
+        sigs_clones = clones.sum(axis = 1)
+        L1 = 0
+        if pad_with_unassigned:     # use unassigned mutations to conservatively estimate the inconsistency
+            reserve_clones = clones.loc['Unassigned'].sum()     # all unassigned mutations in the clones
+            reserve_bulk = bulk.loc['Unassigned'].sum()         # unassigned mutations in the bulk
+            for sig in sigs_clones.index:
+                if sig != 'Unassigned':
+                    diff = sigs_clones[sig] - bulk[sig]
+                    if diff > 0:    # clones too high, try to pad with unassigned mutations from the bulk
+                        to_pad = min(diff, reserve_bulk)
+                        diff -= to_pad
+                        reserve_bulk -= to_pad
+                    else:           # bulk too high, try to pad with unassigned mutations from the clones
+                        to_pad = min(-diff, reserve_clones)
+                        diff += to_pad
+                        reserve_clones -= to_pad
+                    L1 += abs(diff)
+        else:   # simple computation of inconsistency using signatures alone, without unassigned mutations
+            for sig in sigs_clones.index:
+                if sig != 'Unassigned':
+                    L1 += abs(sigs_clones[sig] - bulk[sig])
+        inconsistency = L1 / bulk.sum()
+        output_file.write('{}\t{}\t{}\t{}\t{:.4f}\n'.format(parts[1].split('~')[1], parts[4], parts[3], n, inconsistency))
     output_file.close()
