@@ -579,7 +579,7 @@ def fit_synthetic_clones(code_name, clone_sizes, sig_weights, tot_out_of_referen
         # evaluate the estimated signature weights
         oname = 'results-{}-{}'.format(cfg.tool, code_name)
         evaluate_main(info_label, true_res.T, muts, compress_result_file = False, oname = oname)
-        rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}-{}-w_{}-{}.dat'.format(cfg.WGS_or_WES, cfg.tool, code_name, rep, num_muts))
+        rename('signature_results/{}-contribution.dat'.format(cfg.tool), 'signature_results/contribution-{}-{}-{}-w_{}-{:.0f}.dat'.format(cfg.WGS_or_WES, cfg.tool, code_name, rep, num_muts))
     # # prepare a zip file with compressed (lzma) estimated signature weights for all cohorts
     # system('zip ../signature_results-{}-{}-{}-.zip signature_results/contribution-*.lzma'.format(cfg.WGS_or_WES, cfg.tool, code_name))
     # shutil.rmtree('signature_results')  # remove all result files
