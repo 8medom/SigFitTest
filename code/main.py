@@ -155,8 +155,9 @@ print('main.py: uncomment a line with a function call or add your own function c
 
 
 # # generate synthetic catalogs where samples differ in their mutation burden and the activity of
-# # out-of-reference signatures; the mutation burdens are 500, 1000, 2000, 4000, 8000 and the out-
-# # of-reference signature activities are 0, 0.1, 0.2, 0.3 (20 different combinations in total)
+# # out-of-reference signatures; unless specified otherwise using parameters muts and weights_OOR,
+# # the mutation burdens are 500, 1000, 2000, 4000, 8000 and the out-of-reference signature
+# # activities are 0, 0.1, 0.2, 0.3 (20 different combinations in total)
 # # output:
 # # mutational catalogs data_for_*.dat and true signature activities true_weights_*.dat in folder
 # # ../generated_data
@@ -164,8 +165,8 @@ print('main.py: uncomment a line with a function call or add your own function c
 # generate_mixed_synthetic_catalogs(num_samples = 100, cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'],
 #                                   code_name = 'MIXED', rng_seed = 0)
 #
-# generate_mixed_synthetic_catalogs(num_samples = 60, cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'],
-#                                   code_name = 'MIXED', muts = [1000, 10000], weights_OOR = [0, 0.1, 0.2])
+generate_mixed_synthetic_catalogs(num_samples = 60, cancer_types = ['Head-SCC', 'ColoRect-AdenoCA'],
+                                  code_name = 'MIXED', muts = [1000, 10000], weights_OOR = [0, 0.2])
 
 
 # # fit samples in the provided mutatational catalog using the fitting tool set in the variable 'tool'
@@ -179,12 +180,7 @@ print('main.py: uncomment a line with a function call or add your own function c
 # # 2) if true signature activities (ground truth, GT) are provided, then fitting performance metrics are
 # #    saved for all samples (results_individual_samples-*.dat) and for the cohort (results-*.dat)
 # # sample calls:
-# for ct in ['Head-SCC', 'ColoRect-AdenoCA']:
-#     fit_and_assess(input_catalog = '../generated_data/data_for_deconstructSigs_MIXED_{}.dat'.format(ct),
-#                    GT = '../generated_data/true_weights_MIXED_{}.dat'.format(ct),
-#                    code_name = 'MIXED_{}'.format(ct))
-#
-# generate_synthetic_catalogs(cancer_types = ['ColoRect-AdenoCA'])
-# fit_and_assess(input_catalog = '../generated_data/data_for_deconstructSigs_ColoRect-AdenoCA-w_0-10000.dat',
-#                GT = '../generated_data/true_weights-ColoRect-AdenoCA-w_0-10000.dat',
-#                code_name = 'OK_ColoRect-AdenoCA')
+for ct in ['Head-SCC', 'ColoRect-AdenoCA']:
+    fit_and_assess(input_catalog = '../generated_data/data_for_deconstructSigs_MIXED_{}.dat'.format(ct),
+                   GT = '../generated_data/true_weights_MIXED_{}.dat'.format(ct),
+                   code_name = 'MIXED_{}'.format(ct))

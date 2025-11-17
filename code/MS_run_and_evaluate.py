@@ -254,7 +254,7 @@ def evaluate_main(info_label, true_res, muts, extra_col = None, compress_result_
 
 
 # evaluate the signature weights estimated for subsampled real mutational catalogs
-def evaluate_real_catalogs(info_label, true_res, muts, aaa_file, compress_result_file = True, extra_col = 'real_data'):
+def evaluate_real_catalogs(info_label, true_res, muts, aaa_file, num_all_sigs, compress_result_file = True, extra_col = 'real_data'):
     if info_label.count('\t') == 1:
         code_name, weights = info_label.split('\t')[1].split('_')[0], info_label.split('\t')[1].split('_')[1]
     else:
@@ -301,6 +301,7 @@ def evaluate_real_catalogs(info_label, true_res, muts, aaa_file, compress_result
             Psample = 0
             Rsample = 0
         if Psample + Rsample > 0:               # F1 metric & Matthews correlation coefficient
+            num_TN = num_all_sigs - num_TP - num_FP - num_FN                    # compute num_TN with regard to the total number of all reference signatures
             Fsample = 2 * Psample * Rsample / (Psample + Rsample)
             MCCsample = (num_TP * num_TN - num_FP * num_FN) / np.sqrt((num_TP + num_FP) * (num_TP + num_FN) * (num_TN + num_FP) * (num_TN + num_FN))
         else:

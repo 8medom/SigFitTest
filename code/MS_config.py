@@ -1,13 +1,13 @@
 import pandas as pd                     # for data structures
 
 
-tool = 'MutationalPatterns'             # signature fitting tool to use; tool scripts named X-tool_name.R or X-tool_name.py
+tool = 'SPA'                            # signature fitting tool to use; tool scripts named X-tool_name.R or X-tool_name.py
 WGS_or_WES = 'WGS'                      # whether to use WGS or WES signatures
-N_samples = 75                          # number of synthetic samples in each cohort
+N_samples = 100                         # number of synthetic samples in each cohort
 num_realizations = 2                    # number of independent cohorts to generate
 timeout_time = 86400                    # fitting tools processes are killed after this time (increase to 8 hrs for mmsig and signature.tools.lib)
 num_muts_list = [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]         # numbers of mutations for simple cohorts
-num_muts_list_short = [400, 2000, 10000]                                            # numbers of mutations for heterogeneous cohorts
+num_muts_list_short = [100, 2000, 50000]                                            # numbers of mutations for heterogeneous cohorts
 EPSILON = 1e-8                                                                      # for floating-point comparisons
 if WGS_or_WES == 'WGS': input_signatures = '../input/COSMIC_v3.3.1_SBS_GRCh38.txt'  # location of input WGS signatures
 else: input_signatures = '../input/COSMIC_v3_SBS_GRCh38-WES.txt'                    # location of input WES signatures

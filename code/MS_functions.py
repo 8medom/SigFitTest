@@ -592,9 +592,13 @@ def fit_synthetic_clones(code_name, clone_sizes, sig_weights, tot_out_of_referen
 # fit a given mutational catalog, then go over all samples and generate num_bootstrap synthetic samples with signature
 # activities given by the initially obtained estimates, fit the generated samples and compare their reconstruction
 # metrics with the initially computed reconstruction metrics for the input sample
-def fit_and_assess(input_catalog, code_name, num_bootstrap = 100, GT = None):
+# which_setup == 'X' -> tool scripts starting with X use all COSMICv3 signatures as a reference
+def fit_and_assess(input_catalog, code_name, num_bootstrap = 100, GT = None, which_setup = 'X'):
     rng = np.random.default_rng(0)                  # initialize the RNG
-    cosmic3 = pd.read_csv('../input/COSMIC_v3_SBS_GRCh38.txt', sep = '\t', index_col = 0)   # reference catalog used for fitting
+    if which_setup == 'X':                          # load the reference catalog used for fitting
+        cosmic_ref = pd.read_csv('../input/COSMIC_v3_SBS_GRCh38.txt', sep = '\t', index_col = 0)
+    elif which_setup == 'A':
+        cosmic_ref = pd.read_csv('../input/COSMIC_v3.4_SBS_GRCh37.txt', sep = '\t', index_col = 0)
     if not isdir('data'): mkdir('data')
     if not isdir('signature_results'): mkdir('signature_results')
     ttt = open('../running_times-{}-{}.dat'.format(cfg.WGS_or_WES, cfg.tool), 'a')
@@ -624,7 +628,7 @@ def fit_and_assess(input_catalog, code_name, num_bootstrap = 100, GT = None):
         else: aaa = open(oname, 'a')
         GT = pd.read_csv(GT, sep = '\t', index_col = 0, comment = '#').T
         print('\nrun\tsamples\tmuts\tMAE\twT\tn_FP\twT_FP\tn_FN\twT_FN\tP\tR\tF1\tMCC')
-        evaluate_real_catalogs(info_label, GT, muts, aaa, compress_result_file = False)
+        evaluate_real_catalogs(info_label, GT, muts, aaa, compress_result_file = False, num_all_sigs = cosmic_ref.shape[1])
         aaa.close()
     res = pd.read_csv('signature_results/{}-contribution.dat'.format(cfg.tool), sep = ',', index_col = 0)
     rename('signature_results/{}-contribution.dat'.format(cfg.tool), '../{}_{}_contribution.dat'.format(cfg.tool, code_name))
@@ -632,7 +636,7 @@ def fit_and_assess(input_catalog, code_name, num_bootstrap = 100, GT = None):
     for n, col in enumerate(res.columns):           # assess the quality of fit for each sample
         normed_sample = counts[col] / muts[col]     # normalized sample
         res[col] /= res[col].sum()                  # force normalization of the estimated signature activities
-        reconstruction = cosmic3.dot(res[col])      # reconstructed profile
+        reconstruction = cosmic_ref.dot(res[col])   # reconstructed profile
         L1 = (normed_sample - reconstruction).abs().sum()
         L2 = np.sqrt(np.power(normed_sample - reconstruction, 2).sum())
         if reconstruction.sum() > 0: cos = 1 - cosine_d(normed_sample, reconstruction)
@@ -649,7 +653,7 @@ def fit_and_assess(input_catalog, code_name, num_bootstrap = 100, GT = None):
         timeout_run(info_label, ttt, xxx, yyy, which_setup = which_setup)
         Xres = pd.read_csv('signature_results/{}-contribution.dat'.format(cfg.tool), sep = ',', index_col = 0)
         Xres /= Xres.sum()                          # bootsrap: force normalization of the estimated signature activities
-        Xreconstruction = cosmic3.dot(Xres)         # bootsrap: reconstructed profiles
+        Xreconstruction = cosmic_ref.dot(Xres)      # bootsrap: reconstructed profiles
         Xnormed_sample = Xcounts / Xcounts.sum()    # bootsrap: normalized samples
         XL1 = (Xnormed_sample - Xreconstruction).abs().sum(axis = 0)
         XL2 = np.sqrt(np.power(Xnormed_sample - Xreconstruction, 2).sum(axis = 0))

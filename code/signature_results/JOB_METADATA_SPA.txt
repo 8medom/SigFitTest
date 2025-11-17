@@ -1,0 +1,50 @@
+THIS FILE CONTAINS THE METADATA ABOUT SYSTEM AND RUNTIME
+
+
+-------System Info-------
+Operating System Name: Linux
+Nodename: matus-Latitude-7420
+Release: 6.8.0-85-generic
+Version: #85-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep 18 15:26:59 UTC 2025
+
+-------Python and Package Versions------- 
+Python Version: 3.13.2
+SigProfilerPlotting Version: 1.4.1
+SigProfilerMatrixGenerator Version: 1.3.5
+SigProfilerAssignment Version: 0.2.5
+Pandas version: 2.3.3
+Numpy version: 2.3.3
+
+--------------EXECUTION PARAMETERS--------------
+INPUT DATA
+	input_type: matrix
+	output: signature_results
+	samples: data/data_for_deconstructSigs.dat
+	reference_genome: GRCh38
+	context_types: 96
+	exome: False
+COSMIC MATCH
+	cosmic_version: 3
+	nnls_add_penalty: 0.05
+	nnls_remove_penalty: 0.01
+	initial_remove_penalty: 0.05
+	de_novo_fit_penalty: 0.02
+	export_probabilities: True
+	collapse_to_SBS96: True
+	denovo_refit_option: False
+	decompose_fit_option: False
+	cosmic_fit_option: True
+
+-------Analysis Progress------- 
+[2025-11-17 16:08:09] Analysis started: 
+
+ Assigning COSMIC sigs or Signature Database ...... 
+ Finished Cosmic fitting! 
+Execution time:0:00:10.904141
+
+[2025-11-17 16:08:20] Analysis ended: 
+
+-------Job Status------- 
+Assignment of mutational signatures completed successfully! 
+Total execution time: 0:00:10 
+Results can be found in:  signature_results  folder
